@@ -156,6 +156,20 @@ function UploadZone({ workId }: { workId: string }) {
     const fd = new FormData()
     fd.append('workId', workId)
     for (const f of files) fd.append('files', f)
+    // Sidetelling skjer i nettleseren (gratis CPU) — Workers-gratisplanen
+    // har ikke budsjett til full PDF-parsing per request.
+    try {
+      const { PDFDocument } = await import('pdf-lib')
+      const counts: Record<string, number> = {}
+      for (const f of files) {
+        if (!/\.pdf$/i.test(f.name)) continue
+        try {
+          const doc = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true })
+          counts[f.name] = doc.getPageCount()
+        } catch {}
+      }
+      fd.append('pageCounts', JSON.stringify(counts))
+    } catch {}
     setUploading(true)
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: fd })

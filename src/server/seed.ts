@@ -20,26 +20,22 @@ import { BRASS_BAND_PARTS } from '../lib/taxonomy'
 import { newId, sha256Hex } from '../lib/id'
 import { youTubeSearchUrl } from '../lib/youtube'
 import { generateDemoPartPdf } from './pdf'
+import {
+  DEMO_SHARE_EXPIRES,
+  DEMO_SHARE_PART_IDS,
+  DEMO_SHARE_RECIPIENT,
+  DEMO_SHARE_TOKEN,
+  SEED_MEMBERS,
+  SEED_PROJECTS,
+  SEED_ROLES,
+  SEED_ROLE_PERMISSIONS,
+  SEED_SEASONS,
+  SEED_WORKS,
+} from './seed-data'
 
-/** Fast vikartoken i demo, så vikarvisningen kan demonstreres uten oppsett. */
-export const DEMO_SHARE_TOKEN = 'demo-vikar-sommerkonsert'
+export { DEMO_SHARE_TOKEN }
 
 const now = () => new Date()
-
-type SeedWork = {
-  id: string
-  title: string
-  composer: string | null
-  arranger: string | null
-  publisher: string | null
-  genre: string | null
-  grade: number | null
-  durationSec: number | null
-  acquiredYear: number | null
-  physicalLocation: string | null
-  notes: string | null
-  tempoText: string
-}
 
 export async function isSeeded(): Promise<boolean> {
   const d = db()
@@ -47,6 +43,11 @@ export async function isSeeded(): Promise<boolean> {
   return row.length > 0
 }
 
+/**
+ * In-app-seeding for LOKAL utvikling (genererer 210 PDF-er i én request —
+ * det er greit lokalt, men overskrider CPU-grensen på Workers gratisplan;
+ * produksjon seedes derfor med `pnpm seed:remote` i stedet).
+ */
 export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boolean }> {
   if (env.DEMO_MODE !== 'true') throw new Error('Seeding er kun tilgjengelig i demo-modus')
   if (await isSeeded()) return { ok: true, alreadySeeded: true }
@@ -55,24 +56,8 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
   const ts = now()
 
   // ---------- Roller og rettigheter ----------
-  await d.insert(roles).values([
-    { id: 'admin', name: 'Administrator' },
-    { id: 'archivist', name: 'Arkivar' },
-    { id: 'conductor', name: 'Dirigent' },
-    { id: 'member', name: 'Musiker' },
-  ])
-  await d.insert(rolePermissions).values([
-    { roleId: 'admin', permission: '*' },
-    { roleId: 'archivist', permission: 'works.manage' },
-    { roleId: 'archivist', permission: 'projects.manage' },
-    { roleId: 'archivist', permission: 'shares.manage' },
-    { roleId: 'archivist', permission: 'scores.view' },
-    { roleId: 'conductor', permission: 'works.manage' },
-    { roleId: 'conductor', permission: 'projects.manage' },
-    { roleId: 'conductor', permission: 'shares.manage' },
-    { roleId: 'conductor', permission: 'scores.view' },
-    { roleId: 'member', permission: 'scores.view' },
-  ])
+  await d.insert(roles).values(SEED_ROLES.map((r) => ({ ...r })))
+  await d.insert(rolePermissions).values(SEED_ROLE_PERMISSIONS)
 
   // ---------- Besetning ----------
   await chunked(
@@ -89,38 +74,17 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
   )
 
   // ---------- Medlemmer ----------
-  const members: Array<{ id: string; name: string; email: string; roleId: string; partIds: string[] }> = [
-    { id: newId(), name: 'Sindre Ryland', email: 'sindre@demo.tertnesbrass.no', roleId: 'admin', partIds: ['euphonium'] },
-    { id: newId(), name: 'Eirik Berge', email: 'dirigent@demo.tertnesbrass.no', roleId: 'conductor', partIds: [] },
-    { id: newId(), name: 'Ingrid Marie Dale', email: 'ingrid@demo.tertnesbrass.no', roleId: 'member', partIds: ['solo-cornet'] },
-    { id: newId(), name: 'Jonas Helle', email: 'jonas@demo.tertnesbrass.no', roleId: 'member', partIds: ['second-cornet'] },
-    { id: newId(), name: 'Astrid Fjeldstad', email: 'astrid@demo.tertnesbrass.no', roleId: 'member', partIds: ['flugel'] },
-    { id: newId(), name: 'Karim Aly', email: 'karim@demo.tertnesbrass.no', roleId: 'member', partIds: ['eb-bass'] },
-    { id: newId(), name: 'Silje Tveit', email: 'silje@demo.tertnesbrass.no', roleId: 'member', partIds: ['percussion-1'] },
-    { id: newId(), name: 'Ole Kristian Bø', email: 'ole@demo.tertnesbrass.no', roleId: 'archivist', partIds: ['bass-trombone'] },
-  ]
+  const members = SEED_MEMBERS.map((m) => ({ ...m, id: newId() }))
   await d.insert(users).values(
     members.map((m) => ({ id: m.id, name: m.name, email: m.email, roleId: m.roleId, createdAt: ts })),
   )
   await d.insert(userParts).values(
     members.flatMap((m) => m.partIds.map((partId) => ({ userId: m.id, partId, isPrimary: true }))),
   )
-  const sindre = members[0]!
+  const admin = members[0]!
 
   // ---------- Verk ----------
-  const w = (input: Omit<SeedWork, 'id'>): SeedWork => ({ id: newId(), ...input })
-  const seedWorks: SeedWork[] = [
-    w({ title: 'Where Eagles Sing', composer: 'Paul Lovatt-Cooper', arranger: null, publisher: null, genre: 'Konsertåpner', grade: 3, durationSec: 300, acquiredYear: 2019, physicalLocation: 'Skap 1 · Mappe 041', notes: null, tempoText: 'Vivace' }),
-    w({ title: 'I Dovregubbens hall', composer: 'Edvard Grieg', arranger: 'Ray Farr', publisher: null, genre: 'Klassisk', grade: 3, durationSec: 210, acquiredYear: 2015, physicalLocation: 'Skap 1 · Mappe 012', notes: null, tempoText: 'Alla marcia, poco a poco accelerando' }),
-    w({ title: 'Benedictus', composer: 'Karl Jenkins', arranger: 'Tony Small', publisher: 'Boosey & Hawkes', genre: 'Hymne', grade: 3, durationSec: 420, acquiredYear: 2017, physicalLocation: 'Skap 1 · Mappe 027', notes: 'Husk soloist-stemme til euphonium.', tempoText: 'Andante sostenuto' }),
-    w({ title: 'Cry of the Celts', composer: 'Ronan Hardiman', arranger: 'Peter Graham', publisher: 'Gramercy Music', genre: 'Suite', grade: 3, durationSec: 480, acquiredYear: 2019, physicalLocation: 'Skap 2 · Mappe 008', notes: null, tempoText: 'Misterioso' }),
-    w({ title: 'Sætergjentens søndag', composer: 'Ole Bull', arranger: null, publisher: 'Norsk Noteservice', genre: 'Norsk perle', grade: 2, durationSec: 240, acquiredYear: 2020, physicalLocation: 'Skap 1 · Mappe 055', notes: null, tempoText: 'Adagio cantabile' }),
-    w({ title: 'Tico-Tico no Fubá', composer: 'Zequinha de Abreu', arranger: 'Sandy Smith', publisher: null, genre: 'Latin', grade: 4, durationSec: 200, acquiredYear: 2022, physicalLocation: 'Skap 2 · Mappe 019', notes: 'Brukes gjerne som ekstranummer.', tempoText: 'Presto' }),
-    w({ title: 'Gaelforce', composer: 'Peter Graham', arranger: null, publisher: 'Gramercy Music', genre: 'Konsertverk', grade: 4, durationSec: 660, acquiredYear: 2018, physicalLocation: 'Skap 1 · Mappe 003', notes: 'Original 2. kornett-stemme mangler — kopi ligger i mappen.', tempoText: 'Maestoso' }),
-    w({ title: 'Vitae Aeternum', composer: 'Paul Lovatt-Cooper', arranger: null, publisher: null, genre: 'Konsertverk', grade: 4, durationSec: 540, acquiredYear: 2021, physicalLocation: 'Skap 2 · Mappe 031', notes: null, tempoText: 'Adagio — Allegro' }),
-    w({ title: 'Shine as the Light', composer: 'Peter Graham', arranger: null, publisher: 'SP&S', genre: 'Konsertverk', grade: 3, durationSec: 330, acquiredYear: 2016, physicalLocation: 'Skap 1 · Mappe 022', notes: null, tempoText: 'Allegro deciso' }),
-    w({ title: 'Amazing Grace', composer: 'Trad.', arranger: 'William Himes', publisher: null, genre: 'Hymne', grade: 2, durationSec: 260, acquiredYear: 2010, physicalLocation: 'Skap 1 · Mappe 001', notes: null, tempoText: 'Lento espressivo' }),
-  ]
+  const seedWorks = SEED_WORKS.map((sw) => ({ ...sw, id: newId() }))
   await chunked(
     seedWorks.map((sw) => ({
       id: sw.id,
@@ -142,7 +106,6 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
     (rows) => d.insert(works).values(rows),
   )
 
-  // Lyttelenker (YouTube-søk — ekte innspillingslenker limes inn i demoen)
   await d.insert(workLinks).values(
     seedWorks.map((sw) => ({
       id: newId(),
@@ -154,58 +117,45 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
   )
 
   // ---------- Sesonger og prosjekter ----------
-  const season26v = { id: newId(), name: 'Vår 2026', startsOn: '2026-01-01', endsOn: '2026-07-31' }
-  const season27v = { id: newId(), name: 'Vår 2027', startsOn: '2027-01-01', endsOn: '2027-07-31' }
-  await d.insert(seasons).values([season26v, season27v])
+  const seasonRows = SEED_SEASONS.map((s) => ({ ...s, id: newId() }))
+  await d.insert(seasons).values(seasonRows)
+  const seasonId = new Map(seasonRows.map((s) => [s.name, s.id]))
+  const workIdByTitle = new Map(seedWorks.map((sw) => [sw.title, sw.id]))
 
-  const byTitle = (t: string) => seedWorks.find((sw) => sw.title === t)!.id
-  const projSommer = {
-    id: newId(),
-    seasonId: season26v.id,
-    name: 'Sommerkonsert',
-    kind: 'konsert',
-    eventDate: '2026-06-24',
-    venue: 'Åsane kulturhus',
-    description: 'Sesongavslutning med sommerlig program. Oppmøte kl. 17:30, antrekk: sort med sommersløyfe.',
-    isPublished: true,
-    createdAt: ts,
+  for (const sp of SEED_PROJECTS) {
+    const projectId = newId()
+    await d.insert(projects).values({
+      id: projectId,
+      seasonId: seasonId.get(sp.seasonName)!,
+      name: sp.name,
+      kind: sp.kind,
+      eventDate: sp.eventDate,
+      venue: sp.venue,
+      description: sp.description,
+      isPublished: sp.isPublished,
+      createdAt: ts,
+    })
+    await d.insert(projectWorks).values(
+      sp.repertoire.map(([title, position, note]) => ({
+        projectId,
+        workId: workIdByTitle.get(title)!,
+        position,
+        note,
+      })),
+    )
+    if (sp.name === 'Sommerkonsert') {
+      await d.insert(shareLinks).values({
+        id: newId(),
+        projectId,
+        tokenHash: await sha256Hex(DEMO_SHARE_TOKEN),
+        recipientName: DEMO_SHARE_RECIPIENT,
+        partIds: JSON.stringify(DEMO_SHARE_PART_IDS),
+        expiresAt: new Date(Date.parse(DEMO_SHARE_EXPIRES)),
+        createdBy: admin.id,
+        createdAt: ts,
+      })
+    }
   }
-  const proj17mai = {
-    id: newId(),
-    seasonId: season26v.id,
-    name: '17. mai',
-    kind: 'konsert',
-    eventDate: '2026-05-17',
-    venue: 'Tertnes',
-    description: 'Morgenspilling og folketog.',
-    isPublished: true,
-    createdAt: ts,
-  }
-  const projNM = {
-    id: newId(),
-    seasonId: season27v.id,
-    name: 'NM Brass 2027',
-    kind: 'konkurranse',
-    eventDate: '2027-02-12',
-    venue: 'Grieghallen, Bergen',
-    description: 'Utkast til konkurranseprogram — ikke publisert til medlemmene ennå.',
-    isPublished: false,
-    createdAt: ts,
-  }
-  await d.insert(projects).values([projSommer, proj17mai, projNM])
-
-  await d.insert(projectWorks).values([
-    { projectId: projSommer.id, workId: byTitle('Where Eagles Sing'), position: 1, note: null },
-    { projectId: projSommer.id, workId: byTitle('I Dovregubbens hall'), position: 2, note: null },
-    { projectId: projSommer.id, workId: byTitle('Benedictus'), position: 3, note: 'Solist: eufonium' },
-    { projectId: projSommer.id, workId: byTitle('Cry of the Celts'), position: 4, note: null },
-    { projectId: projSommer.id, workId: byTitle('Sætergjentens søndag'), position: 5, note: null },
-    { projectId: projSommer.id, workId: byTitle('Tico-Tico no Fubá'), position: 6, note: 'Ekstranummer' },
-    { projectId: proj17mai.id, workId: byTitle('Amazing Grace'), position: 1, note: null },
-    { projectId: proj17mai.id, workId: byTitle('Gaelforce'), position: 2, note: null },
-    { projectId: proj17mai.id, workId: byTitle('Sætergjentens søndag'), position: 3, note: null },
-    { projectId: projNM.id, workId: byTitle('Vitae Aeternum'), position: 1, note: 'Selvvalgt verk' },
-  ])
 
   // ---------- Notefiler (genererte demo-PDF-er) ----------
   const fileRows: Array<typeof workFiles.$inferInsert> = []
@@ -233,24 +183,12 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
         fileName: `${sw.title} - ${part.nameEn}.pdf`,
         fileSize: bytes.byteLength,
         pageCount: isScore ? 4 : 2,
-        uploadedBy: sindre.id,
+        uploadedBy: admin.id,
         uploadedAt: ts,
       })
     }
   }
   await chunked(fileRows, 8, (rows) => d.insert(workFiles).values(rows))
-
-  // ---------- Demovikarlenke ----------
-  await d.insert(shareLinks).values({
-    id: newId(),
-    projectId: projSommer.id,
-    tokenHash: await sha256Hex(DEMO_SHARE_TOKEN),
-    recipientName: 'Ola Vikar',
-    partIds: JSON.stringify(['solo-cornet']),
-    expiresAt: new Date(Date.parse('2026-07-24T12:00:00Z')),
-    createdBy: sindre.id,
-    createdAt: ts,
-  })
 
   await d.insert(settings).values([
     { key: 'bandName', value: 'Tertnes Brass' },

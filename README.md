@@ -4,7 +4,9 @@ Notearkiv, publisering og deling av noter for brass band — bygget for [Tertnes
 
 **Idéen:** Arkivaren katalogiserer verkene én gang, med PDF per stemme. Deretter er en ny konsert bare å klikke sammen et program — hvert medlem ser *sine* stemmer («Mine noter»), og vikarer får en tidsbegrenset lenke med kun sine stemmer, uten innlogging.
 
-> **Status: demo / fase 1.** Kjørbar lokalt uten Cloudflare-konto. Demodata genereres ved første oppstart (inkl. kunstige note-PDF-er — ingen rettighetsbelagte noter i repoet).
+> **Status: demo / fase 1.**
+> **Live demo:** [tb-notearkiv.saynain.workers.dev](https://tb-notearkiv.saynain.workers.dev) (også på [noter.saynain.com](https://noter.saynain.com)) — velg en persona og se deg rundt, eller [åpne vikarlenken](https://tb-notearkiv.saynain.workers.dev/v/demo-vikar-sommerkonsert).
+> Kjørbar lokalt uten Cloudflare-konto. Demodata er kunstige (inkl. genererte note-PDF-er) — ingen rettighetsbelagte noter i repoet.
 
 ## Funksjoner i demoen
 
@@ -50,10 +52,12 @@ Begrunnelse, datamodell og veikart: se [PLAN.md](PLAN.md).
 
 ```bash
 pnpm exec wrangler d1 create tb-notearkiv     # legg database_id inn i wrangler.jsonc
-pnpm exec wrangler r2 bucket create tb-notearkiv-files
+pnpm exec wrangler r2 bucket create tb-notearkiv-files   # krever at R2 er aktivert i dashboardet
 pnpm exec wrangler d1 migrations apply tb-notearkiv --remote
 pnpm exec wrangler secret put SESSION_SECRET  # min. 32 tegn
 pnpm run deploy
+pnpm seed:remote                              # demodata (genereres lokalt — gratisplanens
+                                              # CPU-grense tåler ikke in-app-seeding i prod)
 ```
 
 > ⚠️ `DEMO_MODE` i [wrangler.jsonc](wrangler.jsonc) skrur på persona-innlogging uten passord. Sett `"DEMO_MODE": "false"` for alt annet enn demo. Ekte innlogging (Google via better-auth) kommer i fase 1, se veikartet.

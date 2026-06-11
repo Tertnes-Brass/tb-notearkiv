@@ -33,6 +33,16 @@ export const Route = createFileRoute('/api/upload')({
 
         const partDefs = await d.select().from(parts).orderBy(asc(parts.sortOrder))
 
+        // Sidetall telles helst i nettleseren før opplasting (se UploadZone);
+        // server-side byte-skann er kun fallback og takler ikke objekt-strømmer.
+        let clientPageCounts: Record<string, number> = {}
+        const rawCounts = form.get('pageCounts')
+        if (typeof rawCounts === 'string') {
+          try {
+            clientPageCounts = JSON.parse(rawCounts) as Record<string, number>
+          } catch {}
+        }
+
         const uploaded: Array<{
           id: string
           fileName: string
@@ -53,7 +63,10 @@ export const Route = createFileRoute('/api/upload')({
           const bytes = await entry.arrayBuffer()
           const guessed = isAudio ? null : guessPartFromFilename(fileName, partDefs)
           const kind = isAudio ? 'audio' : guessed === 'score' ? 'score' : guessed ? 'part' : 'other'
-          const pageCount = isPdf ? await countPdfPages(bytes) : null
+          const clientCount = clientPageCounts[fileName]
+          const pageCount = isPdf
+            ? (typeof clientCount === 'number' && clientCount > 0 ? Math.floor(clientCount) : await countPdfPages(bytes))
+            : null
 
           const fileId = newId()
           const ext = isPdf ? 'pdf' : (fileName.split('.').pop() ?? 'bin').toLowerCase()

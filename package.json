@@ -12,6 +12,7 @@
 		"preview": "pnpm run build && vite preview",
 		"test": "vitest run",
 		"deploy": "pnpm run build && wrangler deploy",
+		"seed:remote": "tsx scripts/seed-remote.ts",
 		"cf-typegen": "wrangler types"
 	},
 	"dependencies": {
@@ -46,6 +47,7 @@
 		"@vitejs/plugin-react": "^6.0.1",
 		"drizzle-kit": "^0.31.10",
 		"jsdom": "^28.1.0",
+		"tsx": "^4.22.4",
 		"typescript": "^6.0.2",
 		"vite": "^8.0.0",
 		"vitest": "^4.1.5",

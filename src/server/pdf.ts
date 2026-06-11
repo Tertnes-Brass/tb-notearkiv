@@ -243,11 +243,18 @@ export async function generateDemoPartPdf({
   return doc.save()
 }
 
-/** Teller sider i en opplastet PDF. Returnerer null om filen ikke lar seg lese. */
+/**
+ * Teller sider i en opplastet PDF med et lett byte-skann (teller
+ * `/Type /Page`-objekter). Full parsing med pdf-lib ville vært mer presist,
+ * men koster for mye CPU per request på Workers gratisplan. Returnerer null
+ * om ingen sider gjenkjennes.
+ */
 export async function countPdfPages(bytes: ArrayBuffer): Promise<number | null> {
   try {
-    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true })
-    return doc.getPageCount()
+    const text = new TextDecoder('latin1').decode(new Uint8Array(bytes))
+    const matches = text.match(/\/Type\s*\/Page[^s]/g)
+    const count = matches?.length ?? 0
+    return count > 0 ? count : null
   } catch {
     return null
   }
