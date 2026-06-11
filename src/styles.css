@@ -1,0 +1,350 @@
+@import '@fontsource-variable/fraunces/full.css';
+@import '@fontsource-variable/fraunces/full-italic.css';
+@import '@fontsource-variable/schibsted-grotesk/index.css';
+@import '@fontsource-variable/schibsted-grotesk/wght-italic.css';
+@import '@fontsource/spline-sans-mono/400.css';
+@import '@fontsource/spline-sans-mono/500.css';
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   TERTNES BRASS · NOTEARKIV — «Konsertprogrammet»
+   Varmt papir, dyp blekk, antikk messing. Fraunces til plakat-
+   typografi, Schibsted Grotesk til brødtekst, mono til metadata.
+   ============================================================ */
+
+:root {
+  --paper: #f7f1e6;
+  --paper-raised: #fdfaf2;
+  --paper-sunken: #efe7d6;
+  --ink: #211b12;
+  --ink-soft: #5f5640;
+  --ink-faint: #8e8468;
+  --line: #ddd2ba;
+  --line-strong: #c4b794;
+  --brass: #95762a;
+  --brass-strong: #7a5f1d;
+  --brass-soft: rgba(149, 118, 42, 0.12);
+  --oxblood: #7c3220;
+  --danger: #a03422;
+  --ok: #4a6b3d;
+  --shadow-soft: 0 1px 2px rgba(43, 34, 16, 0.05), 0 6px 24px -8px rgba(43, 34, 16, 0.16);
+  --shadow-lift: 0 2px 4px rgba(43, 34, 16, 0.07), 0 18px 44px -12px rgba(43, 34, 16, 0.28);
+}
+
+.dark {
+  --paper: #171310;
+  --paper-raised: #201a14;
+  --paper-sunken: #100d0a;
+  --ink: #ede4cf;
+  --ink-soft: #b5a98b;
+  --ink-faint: #857b62;
+  --line: #3a3225;
+  --line-strong: #51462f;
+  --brass: #d3ac4d;
+  --brass-strong: #e7c468;
+  --brass-soft: rgba(211, 172, 77, 0.14);
+  --oxblood: #cd7257;
+  --danger: #d4644c;
+  --ok: #8fb37e;
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 28px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 20px 48px -12px rgba(0, 0, 0, 0.7);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brass: var(--brass);
+  --color-brass-strong: var(--brass-strong);
+  --color-oxblood: var(--oxblood);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+
+  --font-display: 'Fraunces Variable', 'Georgia', serif;
+  --font-sans: 'Schibsted Grotesk Variable', 'Helvetica Neue', sans-serif;
+  --font-mono: 'Spline Sans Mono', 'Menlo', monospace;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  color-scheme: light;
+  scrollbar-color: var(--line-strong) transparent;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--brass-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---------- Papirkorn over hele flaten ---------- */
+.paper-grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+.dark .paper-grain::before {
+  opacity: 0.07;
+}
+
+/* ---------- Notelinje-motiv (maskes så det følger tema) ---------- */
+.staff-rule {
+  height: 18px;
+  background: var(--line-strong);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='18'%3E%3Cg stroke='black' stroke-width='1'%3E%3Cline x1='0' y1='1' x2='160' y2='1'/%3E%3Cline x1='0' y1='5' x2='160' y2='5'/%3E%3Cline x1='0' y1='9' x2='160' y2='9'/%3E%3Cline x1='0' y1='13' x2='160' y2='13'/%3E%3Cline x1='0' y1='17' x2='160' y2='17'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='18'%3E%3Cg stroke='black' stroke-width='1'%3E%3Cline x1='0' y1='1' x2='160' y2='1'/%3E%3Cline x1='0' y1='5' x2='160' y2='5'/%3E%3Cline x1='0' y1='9' x2='160' y2='9'/%3E%3Cline x1='0' y1='13' x2='160' y2='13'/%3E%3Cline x1='0' y1='17' x2='160' y2='17'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+}
+
+/* ---------- Typografi ---------- */
+.display-title {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variation-settings: 'SOFT' 24, 'WONK' 1;
+  letter-spacing: -0.015em;
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brass);
+  font-weight: 500;
+}
+
+.roman-no {
+  font-family: var(--font-display);
+  font-variation-settings: 'SOFT' 0, 'WONK' 0;
+  font-weight: 560;
+  font-style: italic;
+}
+
+/* ---------- Stempel/badge ---------- */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+  padding: 0.18rem 0.5rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.stamp-brass {
+  border-color: color-mix(in srgb, var(--brass) 55%, transparent);
+  color: var(--brass-strong);
+  background: var(--brass-soft);
+}
+.stamp-oxblood {
+  border-color: color-mix(in srgb, var(--oxblood) 50%, transparent);
+  color: var(--oxblood);
+  background: color-mix(in srgb, var(--oxblood) 8%, transparent);
+}
+
+/* ---------- Kort og flater ---------- */
+.sheet {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-soft);
+}
+.sheet-hover {
+  transition: transform 0.25s cubic-bezier(0.2, 0.6, 0.2, 1), box-shadow 0.25s, border-color 0.25s;
+}
+.sheet-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+  border-color: var(--line-strong);
+}
+
+.hairline-row {
+  border-bottom: 1px solid var(--line);
+}
+.hairline-row:last-child {
+  border-bottom: none;
+}
+
+/* ---------- Innlastingsanimasjoner ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 0.55s cubic-bezier(0.2, 0.65, 0.25, 1) both;
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fadein {
+  animation: fadein 0.4s ease both;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  width: 1.05em;
+  height: 1.05em;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  animation: spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .fadein {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Dialog (native <dialog>) ---------- */
+dialog.sheet-dialog {
+  margin: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-lift);
+  padding: 0;
+  max-width: min(92vw, 560px);
+  width: 100%;
+}
+dialog.sheet-dialog[open] {
+  animation: dialog-in 0.28s cubic-bezier(0.2, 0.65, 0.25, 1);
+}
+dialog.sheet-dialog::backdrop {
+  background: color-mix(in srgb, #211b12 38%, transparent);
+  backdrop-filter: blur(3px);
+}
+.dark dialog.sheet-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- Skjema ---------- */
+.field-input {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 0.52rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field-input::placeholder {
+  color: var(--ink-faint);
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px var(--brass-soft);
+}
+select.field-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238e8468' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2rem;
+}
+
+/* ---------- Diverse ---------- */
+.link-quiet {
+  text-decoration: none;
+  color: inherit;
+}
+.link-brass {
+  color: var(--brass-strong);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--brass) 40%, transparent);
+  transition: border-color 0.15s, color 0.15s;
+}
+.link-brass:hover {
+  color: var(--brass);
+  border-bottom-color: var(--brass);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nav-lenker med messing-understrek som «spilles inn» */
+.nav-link {
+  position: relative;
+  text-decoration: none;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -3px;
+  height: 1.5px;
+  background: var(--brass);
+  transition: right 0.22s cubic-bezier(0.2, 0.65, 0.25, 1);
+}
+.nav-link:hover::after,
+.nav-link[data-status='active']::after {
+  right: 0;
+}

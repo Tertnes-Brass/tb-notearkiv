@@ -1,0 +1,38 @@
+/**
+ * Cloudflare Workers-konfigurasjon for tb-notearkiv.
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "tb-notearkiv",
+	"compatibility_date": "2025-09-02",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "@tanstack/react-start/server-entry",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"vars": {
+		// DEMO_MODE aktiverer persona-innlogging og demodata-seeding.
+		// Skal være "false" (eller fjernes) i en reell produksjonsinstans.
+		"DEMO_MODE": "true",
+		// Overstyres med `wrangler secret put SESSION_SECRET` i produksjon.
+		"SESSION_SECRET": "demo-secret-ikke-bruk-i-produksjon"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "tb-notearkiv",
+			// Placeholder til databasen opprettes med `wrangler d1 create`.
+			// Lokal utvikling (vite dev) trenger bare binding-navnet.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "FILES",
+			"bucket_name": "tb-notearkiv-files"
+		}
+	]
+}

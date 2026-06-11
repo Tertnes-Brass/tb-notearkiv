@@ -1,0 +1,349 @@
+import { createServerFn } from '@tanstack/react-start'
+import { and, asc, desc, eq, gte, inArray, like, or, sql } from 'drizzle-orm'
+import { z } from 'zod'
+import { db, type Db } from '../db'
+import { parts, projectWorks, projects, seasons, workFiles, workLinks, works } from '../db/schema'
+import { newId } from '../lib/id'
+import { hasPermission, requireMe, requirePermission } from './access'
+
+export type ProjectWorkDetail = {
+  workId: string
+  title: string
+  composer: string | null
+  arranger: string | null
+  genre: string | null
+  durationSec: number | null
+  position: number
+  note: string | null
+  links: Array<{ id: string; kind: string; url: string; label: string | null }>
+  partFiles: Array<{ id: string; partId: string | null; partName: string | null; partSort: number; pageCount: number | null }>
+  myFiles: Array<{ id: string; partName: string | null; pageCount: number | null }>
+  scoreFileId: string | null
+  audioFiles: Array<{ id: string; label: string | null; fileName: string }>
+}
+
+export async function assembleRepertoire(
+  d: Db,
+  projectId: string,
+  opts: { myPartIds: string[]; includeScore: boolean },
+): Promise<ProjectWorkDetail[]> {
+  const rows = await d
+    .select({
+      workId: works.id,
+      title: works.title,
+      composer: works.composer,
+      arranger: works.arranger,
+      genre: works.genre,
+      durationSec: works.durationSec,
+      position: projectWorks.position,
+      note: projectWorks.note,
+    })
+    .from(projectWorks)
+    .innerJoin(works, eq(projectWorks.workId, works.id))
+    .where(eq(projectWorks.projectId, projectId))
+    .orderBy(asc(projectWorks.position))
+
+  if (rows.length === 0) return []
+  const workIds = rows.map((r) => r.workId)
+
+  const [files, links] = await Promise.all([
+    d
+      .select({
+        id: workFiles.id,
+        workId: workFiles.workId,
+        kind: workFiles.kind,
+        partId: workFiles.partId,
+        label: workFiles.label,
+        fileName: workFiles.fileName,
+        pageCount: workFiles.pageCount,
+        partName: parts.nameNo,
+        partSort: parts.sortOrder,
+      })
+      .from(workFiles)
+      .leftJoin(parts, eq(workFiles.partId, parts.id))
+      .where(inArray(workFiles.workId, workIds)),
+    d.select().from(workLinks).where(inArray(workLinks.workId, workIds)),
+  ])
+
+  return rows.map((r) => {
+    const wf = files.filter((f) => f.workId === r.workId)
+    const partFiles = wf
+      .filter((f) => f.kind === 'part')
+      .map((f) => ({ id: f.id, partId: f.partId, partName: f.partName, partSort: f.partSort ?? 900, pageCount: f.pageCount }))
+      .sort((a, b) => a.partSort - b.partSort)
+    const score = wf.find((f) => f.kind === 'score')
+    return {
+      ...r,
+      links: links.filter((l) => l.workId === r.workId).map((l) => ({ id: l.id, kind: l.kind, url: l.url, label: l.label })),
+      partFiles,
+      myFiles: wf
+        .filter((f) => f.kind === 'part' && f.partId && opts.myPartIds.includes(f.partId))
+        .map((f) => ({ id: f.id, partName: f.partName, pageCount: f.pageCount })),
+      scoreFileId: opts.includeScore && score ? score.id : null,
+      audioFiles: wf
+        .filter((f) => f.kind === 'audio')
+        .map((f) => ({ id: f.id, label: f.label, fileName: f.fileName })),
+    }
+  })
+}
+
+export const getHome = createServerFn().handler(async () => {
+  const me = await requireMe()
+  const d = db()
+  const today = new Date().toISOString().slice(0, 10)
+
+  const upcoming = await d
+    .select()
+    .from(projects)
+    .where(and(eq(projects.isPublished, true), gte(projects.eventDate, today)))
+    .orderBy(asc(projects.eventDate))
+
+  const next = upcoming[0] ?? null
+  const repertoire = next
+    ? await assembleRepertoire(d, next.id, {
+        myPartIds: me.parts.map((p) => p.id),
+        includeScore: hasPermission(me, 'scores.view'),
+      })
+    : []
+
+  const [workCount, fileCount, latestWorks] = await Promise.all([
+    d.select({ n: sql<number>`count(*)` }).from(works),
+    d.select({ n: sql<number>`count(*)` }).from(workFiles),
+    d.select().from(works).orderBy(desc(works.createdAt)).limit(3),
+  ])
+
+  return {
+    me: { name: me.name, parts: me.parts, roleName: me.roleName },
+    nextProject: next,
+    repertoire,
+    upcoming: upcoming.slice(1),
+    stats: { works: workCount[0]?.n ?? 0, files: fileCount[0]?.n ?? 0 },
+    latestWorks,
+  }
+})
+
+export const listProjects = createServerFn().handler(async () => {
+  const me = await requireMe()
+  const d = db()
+  const canManage = hasPermission(me, 'projects.manage')
+
+  const rows = await d
+    .select({
+      id: projects.id,
+      name: projects.name,
+      kind: projects.kind,
+      eventDate: projects.eventDate,
+      venue: projects.venue,
+      isPublished: projects.isPublished,
+      seasonName: seasons.name,
+      workCount: sql<number>`(select count(*) from project_works pw where pw.project_id = ${projects.id})`,
+    })
+    .from(projects)
+    .leftJoin(seasons, eq(projects.seasonId, seasons.id))
+    .where(canManage ? undefined : eq(projects.isPublished, true))
+    .orderBy(desc(projects.eventDate))
+
+  return { projects: rows, canManage }
+})
+
+export const getProject = createServerFn()
+  .validator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    const me = await requireMe()
+    const d = db()
+    const project = (await d.select().from(projects).where(eq(projects.id, data.id)).limit(1))[0]
+    if (!project) throw new Error('Fant ikke prosjektet')
+
+    const canManage = hasPermission(me, 'projects.manage')
+    if (!project.isPublished && !canManage) throw new Error('Prosjektet er ikke publisert ennå')
+
+    const repertoire = await assembleRepertoire(d, project.id, {
+      myPartIds: me.parts.map((p) => p.id),
+      includeScore: hasPermission(me, 'scores.view'),
+    })
+
+    return {
+      project,
+      repertoire,
+      canManage,
+      canShare: hasPermission(me, 'shares.manage'),
+      myParts: me.parts,
+    }
+  })
+
+export const createProject = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      name: z.string().min(1, 'Navn er påkrevd'),
+      kind: z.enum(['konsert', 'konkurranse', 'seminar', 'annet']),
+      eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ugyldig dato'),
+      venue: z.string().optional(),
+      description: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    const d = db()
+    const id = newId()
+    await d.insert(projects).values({
+      id,
+      name: data.name.trim(),
+      kind: data.kind,
+      eventDate: data.eventDate,
+      venue: data.venue?.trim() || null,
+      description: data.description?.trim() || null,
+      seasonId: await findOrCreateSeason(d, data.eventDate),
+      isPublished: false,
+      createdAt: new Date(),
+    })
+    return { id }
+  })
+
+async function findOrCreateSeason(d: Db, eventDate: string): Promise<string> {
+  const year = Number(eventDate.slice(0, 4))
+  const month = Number(eventDate.slice(5, 7))
+  const isSpring = month <= 7
+  const name = `${isSpring ? 'Vår' : 'Høst'} ${year}`
+  const existing = await d.select().from(seasons).where(eq(seasons.name, name)).limit(1)
+  if (existing[0]) return existing[0].id
+  const id = newId()
+  await d.insert(seasons).values({
+    id,
+    name,
+    startsOn: isSpring ? `${year}-01-01` : `${year}-08-01`,
+    endsOn: isSpring ? `${year}-07-31` : `${year}-12-31`,
+  })
+  return id
+}
+
+export const updateProject = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      id: z.string(),
+      name: z.string().min(1).optional(),
+      kind: z.enum(['konsert', 'konkurranse', 'seminar', 'annet']).optional(),
+      eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      venue: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      isPublished: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    const d = db()
+    const { id, ...patch } = data
+    await d
+      .update(projects)
+      .set({
+        ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+        ...(patch.kind !== undefined ? { kind: patch.kind } : {}),
+        ...(patch.eventDate !== undefined ? { eventDate: patch.eventDate } : {}),
+        ...(patch.venue !== undefined ? { venue: patch.venue?.trim() || null } : {}),
+        ...(patch.description !== undefined ? { description: patch.description?.trim() || null } : {}),
+        ...(patch.isPublished !== undefined ? { isPublished: patch.isPublished } : {}),
+      })
+      .where(eq(projects.id, id))
+    return { ok: true }
+  })
+
+export const deleteProject = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    await db().delete(projects).where(eq(projects.id, data.id))
+    return { ok: true }
+  })
+
+export const searchWorksForPicker = createServerFn()
+  .validator(z.object({ q: z.string().optional(), excludeProjectId: z.string() }))
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    const d = db()
+    const q = data.q?.trim()
+    const inProject = d
+      .select({ workId: projectWorks.workId })
+      .from(projectWorks)
+      .where(eq(projectWorks.projectId, data.excludeProjectId))
+
+    const rows = await d
+      .select({ id: works.id, title: works.title, composer: works.composer, durationSec: works.durationSec })
+      .from(works)
+      .where(
+        and(
+          q ? or(like(works.title, `%${q}%`), like(works.composer, `%${q}%`)) : undefined,
+          sql`${works.id} not in ${inProject}`,
+        ),
+      )
+      .orderBy(asc(works.title))
+      .limit(12)
+    return { works: rows }
+  })
+
+export const addWorkToProject = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string(), workId: z.string(), note: z.string().optional() }))
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    const d = db()
+    const max = await d
+      .select({ m: sql<number>`coalesce(max(position), 0)` })
+      .from(projectWorks)
+      .where(eq(projectWorks.projectId, data.projectId))
+    await d.insert(projectWorks).values({
+      projectId: data.projectId,
+      workId: data.workId,
+      position: (max[0]?.m ?? 0) + 1,
+      note: data.note?.trim() || null,
+    })
+    return { ok: true }
+  })
+
+export const removeWorkFromProject = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string(), workId: z.string() }))
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    const d = db()
+    await d
+      .delete(projectWorks)
+      .where(and(eq(projectWorks.projectId, data.projectId), eq(projectWorks.workId, data.workId)))
+    // Tetter hull i rekkefølgen
+    const remaining = await d
+      .select({ workId: projectWorks.workId })
+      .from(projectWorks)
+      .where(eq(projectWorks.projectId, data.projectId))
+      .orderBy(asc(projectWorks.position))
+    for (let i = 0; i < remaining.length; i++) {
+      await d
+        .update(projectWorks)
+        .set({ position: i + 1 })
+        .where(and(eq(projectWorks.projectId, data.projectId), eq(projectWorks.workId, remaining[i]!.workId)))
+    }
+    return { ok: true }
+  })
+
+export const moveWorkInProject = createServerFn({ method: 'POST' })
+  .validator(z.object({ projectId: z.string(), workId: z.string(), direction: z.enum(['up', 'down']) }))
+  .handler(async ({ data }) => {
+    await requirePermission('projects.manage')
+    const d = db()
+    const rows = await d
+      .select({ workId: projectWorks.workId, position: projectWorks.position })
+      .from(projectWorks)
+      .where(eq(projectWorks.projectId, data.projectId))
+      .orderBy(asc(projectWorks.position))
+
+    const idx = rows.findIndex((r) => r.workId === data.workId)
+    const swapWith = data.direction === 'up' ? idx - 1 : idx + 1
+    if (idx === -1 || swapWith < 0 || swapWith >= rows.length) return { ok: true }
+
+    const a = rows[idx]!
+    const b = rows[swapWith]!
+    await d
+      .update(projectWorks)
+      .set({ position: b.position })
+      .where(and(eq(projectWorks.projectId, data.projectId), eq(projectWorks.workId, a.workId)))
+    await d
+      .update(projectWorks)
+      .set({ position: a.position })
+      .where(and(eq(projectWorks.projectId, data.projectId), eq(projectWorks.workId, b.workId)))
+    return { ok: true }
+  })
