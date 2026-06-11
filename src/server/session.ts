@@ -12,8 +12,8 @@ export function useAppSession() {
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      // secure settes ikke hardt: lokal demo kjører på http://localhost
-      secure: false,
+      // https i produksjon; lokal dev kjører på http://localhost
+      secure: import.meta.env.PROD,
       path: '/',
       maxAge: 60 * 60 * 24 * 30,
     },

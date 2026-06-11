@@ -15,17 +15,21 @@
 	"vars": {
 		// DEMO_MODE aktiverer persona-innlogging og demodata-seeding.
 		// Skal være "false" (eller fjernes) i en reell produksjonsinstans.
-		"DEMO_MODE": "true",
-		// Overstyres med `wrangler secret put SESSION_SECRET` i produksjon.
-		"SESSION_SECRET": "demo-secret-ikke-bruk-i-produksjon"
+		"DEMO_MODE": "true"
+		// SESSION_SECRET settes i .dev.vars lokalt og som Workers-secret i prod:
+		//   pnpm exec wrangler secret put SESSION_SECRET
 	},
+	"routes": [
+		{
+			"pattern": "noter.saynain.com",
+			"custom_domain": true
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "tb-notearkiv",
-			// Placeholder til databasen opprettes med `wrangler d1 create`.
-			// Lokal utvikling (vite dev) trenger bare binding-navnet.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "9b8cdf25-4d9d-4593-94b0-3b6317a3a859",
 			"migrations_dir": "migrations"
 		}
 	],

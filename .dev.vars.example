@@ -1,0 +1,2 @@
+# Kopier til .dev.vars for lokal utvikling
+SESSION_SECRET=minst-32-tegn-lang-hemmelighet-for-sesjonscookies
