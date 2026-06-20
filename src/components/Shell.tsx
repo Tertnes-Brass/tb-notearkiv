@@ -1,7 +1,7 @@
 import { Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import type { Me } from '../server/access'
-import { logout } from '../server/auth'
+import { authClient } from '../lib/auth-client'
 import { Avatar } from './ui'
 
 function ThemeToggle() {
@@ -87,7 +87,7 @@ function UserMenu({ me }: { me: Me }) {
           <button
             onClick={async () => {
               try {
-                await logout()
+                await authClient.signOut()
               } finally {
                 await router.invalidate()
                 router.navigate({ to: '/login' })

@@ -13,11 +13,11 @@
 	},
 	"upload_source_maps": true,
 	"vars": {
-		// DEMO_MODE aktiverer persona-innlogging og demodata-seeding.
-		// Skal være "false" (eller fjernes) i en reell produksjonsinstans.
-		"DEMO_MODE": "true"
-		// SESSION_SECRET settes i .dev.vars lokalt og som Workers-secret i prod:
-		//   pnpm exec wrangler secret put SESSION_SECRET
+		// Ikke-hemmelige variabler. Hemmeligheter (BETTER_AUTH_SECRET) settes med
+		// `wrangler secret put` i prod og i .dev.vars lokalt.
+		"BETTER_AUTH_URL": "https://noter.saynain.com",
+		// Første bruker med denne e-posten promoteres automatisk til admin.
+		"ADMIN_EMAIL": "sindre.ryland@gmail.com"
 	},
 	"routes": [
 		{
@@ -25,7 +25,7 @@
 			"custom_domain": true
 		}
 	],
-	// workers.dev-adresse i tillegg til custom domain (praktisk som delbar demo-URL)
+	// workers.dev-adresse i tillegg til custom domain (praktisk delbar URL)
 	"workers_dev": true,
 	"d1_databases": [
 		{
@@ -40,5 +40,8 @@
 			"binding": "FILES",
 			"bucket_name": "tb-notearkiv-files"
 		}
-	]
+	],
+	// Cloudflare Email Sending — magisk lenke + passord-reset. Domenet onboardes
+	// med `wrangler email sending enable saynain.com` (setter opp DKIM/SPF automatisk).
+	"send_email": [{ "name": "EMAIL" }]
 }

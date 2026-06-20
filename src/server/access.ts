@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { redirect } from '@tanstack/react-router'
+import { getRequest } from '@tanstack/react-start/server'
 import { db } from '../db'
-import { parts, rolePermissions, roles, userParts, users } from '../db/schema'
-import { useAppSession } from './session'
+import { memberProfiles, parts, rolePermissions, roles, userParts } from '../db/schema'
+import { getAuth } from './auth-instance'
 
 export type Me = {
   id: string
@@ -15,46 +16,45 @@ export type Me = {
 }
 
 export async function currentUser(): Promise<Me | null> {
-  const session = await useAppSession()
-  const userId = session.data.userId
-  if (!userId) return null
+  const { headers } = getRequest()
+  const session = await getAuth().api.getSession({ headers })
+  if (!session?.user) return null
 
+  const authUserId = session.user.id
   const d = db()
+
   const rows = await d
     .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      roleId: users.roleId,
+      roleId: memberProfiles.roleId,
       roleName: roles.name,
-      isActive: users.isActive,
+      isActive: memberProfiles.isActive,
     })
-    .from(users)
-    .innerJoin(roles, eq(users.roleId, roles.id))
-    .where(eq(users.id, userId))
+    .from(memberProfiles)
+    .innerJoin(roles, eq(memberProfiles.roleId, roles.id))
+    .where(eq(memberProfiles.authUserId, authUserId))
     .limit(1)
 
-  const user = rows[0]
-  if (!user || !user.isActive) return null
+  const profile = rows[0]
+  if (!profile || !profile.isActive) return null
 
   const [perms, myParts] = await Promise.all([
     d
       .select({ permission: rolePermissions.permission })
       .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, user.roleId)),
+      .where(eq(rolePermissions.roleId, profile.roleId)),
     d
       .select({ id: parts.id, nameNo: parts.nameNo, nameEn: parts.nameEn, section: parts.section })
       .from(userParts)
       .innerJoin(parts, eq(userParts.partId, parts.id))
-      .where(eq(userParts.userId, user.id)),
+      .where(eq(userParts.userId, authUserId)),
   ])
 
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    roleId: user.roleId,
-    roleName: user.roleName,
+    id: authUserId,
+    name: session.user.name,
+    email: session.user.email,
+    roleId: profile.roleId,
+    roleName: profile.roleName,
     permissions: perms.map((p) => p.permission),
     parts: myParts,
   }

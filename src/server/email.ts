@@ -1,0 +1,88 @@
+import { env } from 'cloudflare:workers'
+
+/**
+ * E-postsending via Cloudflare Email Sending (binding `EMAIL`) — ingen ekstern
+ * leverandør. Avsenderdomenet må være onboardet: `wrangler email sending enable saynain.com`.
+ *
+ * Degraderer pent: hvis bindingen ikke finnes (lokal dev, eller e-post ikke
+ * aktivert ennå), logges meldingen til konsollen så magiske lenker kan testes,
+ * og passordinnlogging fungerer uansett.
+ */
+
+const FROM = { email: 'noter@saynain.com', name: 'Tertnes Brass Notearkiv' }
+
+type SendArgs = { to: string; subject: string; html: string; text: string }
+
+export async function sendEmail({ to, subject, html, text }: SendArgs): Promise<{ ok: boolean; fallback?: boolean }> {
+  const binding = (env as unknown as { EMAIL?: { send: (m: unknown) => Promise<unknown> } }).EMAIL
+  if (!binding || typeof binding.send !== 'function') {
+    console.log(`\n[e-post:fallback] Til: ${to}\nEmne: ${subject}\n${text}\n`)
+    return { ok: false, fallback: true }
+  }
+  try {
+    await binding.send({ to, from: FROM, subject, html, text })
+    return { ok: true }
+  } catch (err) {
+    console.error('[e-post] sending feilet:', err)
+    return { ok: false }
+  }
+}
+
+/** Felles ramme rundt e-postene — enkel, papir/messing-estetikk. */
+function shell(heading: string, bodyHtml: string): string {
+  return `<!doctype html><html lang="nb"><body style="margin:0;background:#f7f1e6;font-family:'Helvetica Neue',Arial,sans-serif;color:#211b12;padding:32px 16px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:480px;background:#fdfaf2;border:1px solid #ddd2ba;border-radius:14px;padding:32px">
+      <tr><td>
+        <p style="margin:0 0 24px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#95762a;font-weight:600">Tertnes Brass · Notearkiv</p>
+        <h1 style="margin:0 0 16px;font-family:Georgia,serif;font-size:24px;font-style:italic;color:#211b12">${heading}</h1>
+        ${bodyHtml}
+      </td></tr>
+    </table>
+    <p style="margin:20px 0 0;font-size:11px;color:#8e8468">Du mottar denne e-posten fordi noen ba om innlogging til Tertnes Brass Notearkiv. Var det ikke deg, kan du se bort fra den.</p>
+  </td></tr></table>
+</body></html>`
+}
+
+function button(url: string, label: string): string {
+  return `<a href="${url}" style="display:inline-block;background:#95762a;color:#fdfaf2;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:9px;font-size:15px">${label}</a>`
+}
+
+export function magicLinkEmail(url: string): { subject: string; html: string; text: string } {
+  return {
+    subject: 'Logg inn i Tertnes Brass Notearkiv',
+    html: shell(
+      'Logg inn',
+      `<p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5f5640">Klikk knappen under for å logge inn. Lenken er gyldig i 30 minutter og kan brukes én gang.</p>
+       <p style="margin:0 0 24px">${button(url, 'Logg inn')}</p>
+       <p style="margin:0;font-size:12px;color:#8e8468">Eller lim inn denne lenken i nettleseren:<br><span style="color:#7a5f1d;word-break:break-all">${url}</span></p>`,
+    ),
+    text: `Logg inn i Tertnes Brass Notearkiv.\n\nÅpne denne lenken (gyldig i 30 minutter, kan brukes én gang):\n${url}\n`,
+  }
+}
+
+export function resetPasswordEmail(url: string): { subject: string; html: string; text: string } {
+  return {
+    subject: 'Tilbakestill passordet ditt',
+    html: shell(
+      'Tilbakestill passord',
+      `<p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5f5640">Klikk knappen under for å velge et nytt passord. Lenken er gyldig i 1 time.</p>
+       <p style="margin:0 0 24px">${button(url, 'Velg nytt passord')}</p>
+       <p style="margin:0;font-size:12px;color:#8e8468">Eller lim inn denne lenken i nettleseren:<br><span style="color:#7a5f1d;word-break:break-all">${url}</span></p>`,
+    ),
+    text: `Tilbakestill passordet ditt for Tertnes Brass Notearkiv.\n\nÅpne denne lenken (gyldig i 1 time):\n${url}\n`,
+  }
+}
+
+export function inviteEmail(url: string, bandName = 'Tertnes Brass'): { subject: string; html: string; text: string } {
+  return {
+    subject: `Du er invitert til ${bandName} Notearkiv`,
+    html: shell(
+      'Velkommen!',
+      `<p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5f5640">Du er lagt til i notearkivet til ${bandName}. Klikk under for å logge inn første gang — så finner du notene dine, kommende konserter og lytteeksempler.</p>
+       <p style="margin:0 0 24px">${button(url, 'Logg inn første gang')}</p>
+       <p style="margin:0;font-size:12px;color:#8e8468">Lenken er gyldig i 30 minutter. Du kan også gå til <span style="color:#7a5f1d">noter.saynain.com</span> og logge inn med e-postadressen din når som helst.</p>`,
+    ),
+    text: `Du er invitert til ${bandName} Notearkiv.\n\nLogg inn første gang her (gyldig i 30 minutter):\n${url}\n`,
+  }
+}

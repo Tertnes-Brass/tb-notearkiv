@@ -1,50 +1,60 @@
-import { Link, createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Avatar, Button, Kicker, Stamp } from '../components/ui'
-import { toastError } from '../components/toast'
-import { getLoginPageData, loginAsPersona, runDemoSeed } from '../server/auth'
+import { toast, toastError } from '../components/toast'
+import { Button, Field, Kicker } from '../components/ui'
+import { authClient } from '../lib/auth-client'
 
 export const Route = createFileRoute('/login')({
   beforeLoad: ({ context }) => {
     if (context.me) throw redirect({ to: '/' })
   },
-  loader: () => getLoginPageData(),
   component: LoginPage,
 })
 
 function LoginPage() {
-  const data = Route.useLoaderData()
   const router = useRouter()
-  const [seeding, setSeeding] = useState(false)
-  const [loggingIn, setLoggingIn] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [signingIn, setSigningIn] = useState(false)
+  const [linkSent, setLinkSent] = useState(false)
 
-  const seed = async () => {
-    setSeeding(true)
+  const sendMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) {
+      toast('Skriv inn e-postadressen din', 'error')
+      return
+    }
+    setSending(true)
     try {
-      await runDemoSeed()
-      await router.invalidate()
+      const { error } = await authClient.signIn.magicLink({ email: email.trim(), callbackURL: '/' })
+      if (error) throw new Error(error.message ?? 'Kunne ikke sende lenke')
+      setLinkSent(true)
     } catch (err) {
       toastError(err)
     } finally {
-      setSeeding(false)
+      setSending(false)
     }
   }
 
-  const login = async (userId: string) => {
-    setLoggingIn(userId)
+  const signInWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSigningIn(true)
     try {
-      await loginAsPersona({ data: { userId } })
+      const { error } = await authClient.signIn.email({ email: email.trim(), password })
+      if (error) throw new Error(error.message ?? 'Feil e-post eller passord')
       await router.invalidate()
       await router.navigate({ to: '/' })
     } catch (err) {
       toastError(err)
-      setLoggingIn(null)
+    } finally {
+      setSigningIn(false)
     }
   }
 
   return (
     <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-14">
-      {/* Bakteppe: svake notelinjer øverst og nederst */}
       <div className="staff-rule absolute left-1/2 top-10 w-[min(520px,80vw)] -translate-x-1/2 opacity-30" aria-hidden />
       <div className="staff-rule absolute bottom-10 left-1/2 w-[min(520px,80vw)] -translate-x-1/2 opacity-30" aria-hidden />
       <div
@@ -59,83 +69,83 @@ function LoginPage() {
           Notearkivet
         </h1>
         <p className="mx-auto mt-4 max-w-md text-[0.95rem] leading-relaxed text-ink-soft">
-          Alle stemmer, alle prosjekter, ett sted. Finn nota di på ti sekunder —
-          eller del den med en vikar på tre.
+          Logg inn for å finne notene dine, kommende konserter og lytteeksempler.
         </p>
       </header>
 
-      {!data.seeded ? (
-        <section className="sheet rise relative w-full max-w-md px-7 py-8 text-center" style={{ animationDelay: '120ms' }}>
-          <Kicker className="mb-2">Første gangs oppsett</Kicker>
-          <h2 className="display-title mb-2 text-xl font-semibold">Klargjør demoen</h2>
-          <p className="mb-6 text-sm leading-relaxed text-ink-soft">
-            Fyller arkivet med ti verk, genererte stemme-PDF-er for hele besetningen,
-            to konserter og en vikarlenke — alt lokalt i din egen database.
-          </p>
-          <Button variant="primary" onClick={seed} loading={seeding} className="w-full">
-            {seeding ? 'Genererer demodata …' : 'Last inn demodata'}
-          </Button>
-          {seeding && (
-            <p className="fadein mt-3 font-mono text-[0.66rem] uppercase tracking-[0.16em] text-ink-faint">
-              210 notestemmer skrives … dette tar noen sekunder
+      <section className="sheet rise relative w-full max-w-md px-7 py-8" style={{ animationDelay: '120ms' }}>
+        {linkSent ? (
+          <div className="text-center">
+            <div className="staff-rule mx-auto mb-5 w-28 opacity-60" aria-hidden />
+            <h2 className="display-title mb-2 text-xl font-semibold">Sjekk e-posten din</h2>
+            <p className="text-sm leading-relaxed text-ink-soft">
+              Vi har sendt en innloggingslenke til <strong className="text-ink">{email}</strong>. Den er
+              gyldig i 30 minutter. Finner du den ikke, sjekk søppelpost.
             </p>
-          )}
-        </section>
-      ) : (
-        <section className="relative w-full max-w-3xl">
-          <p className="rise mb-4 text-center font-mono text-[0.66rem] uppercase tracking-[0.2em] text-ink-faint" style={{ animationDelay: '100ms' }}>
-            Velg hvem du vil se demoen som
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {data.personas.map((p, i) => (
-              <button
-                key={p.id}
-                onClick={() => login(p.id)}
-                disabled={loggingIn !== null}
-                className="sheet sheet-hover rise group flex cursor-pointer items-center gap-4 px-5 py-4 text-left disabled:opacity-60"
-                style={{ animationDelay: `${140 + i * 60}ms` }}
-              >
-                <Avatar name={p.name} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-ink">{p.name}</span>
-                  <span className="mt-0.5 block truncate font-mono text-[0.64rem] uppercase tracking-[0.14em] text-ink-faint">
-                    {p.parts.length > 0 ? p.parts.join(' · ') : 'Hele besetningen'}
-                  </span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <Stamp tone={p.roleId === 'member' ? 'neutral' : 'brass'}>{p.roleName}</Stamp>
-                  {loggingIn === p.id ? (
-                    <span className="spinner text-brass" />
-                  ) : (
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 14 14"
-                      fill="none"
-                      aria-hidden
-                      className="text-ink-faint transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-brass"
-                    >
-                      <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </span>
-              </button>
-            ))}
+            <Button variant="ghost" className="mt-5" onClick={() => setLinkSent(false)}>
+              Tilbake
+            </Button>
           </div>
+        ) : (
+          <>
+            <form onSubmit={sendMagicLink} className="space-y-4">
+              <Field label="E-post">
+                <input
+                  type="email"
+                  className="field-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="deg@example.com"
+                  autoComplete="email"
+                  autoFocus
+                />
+              </Field>
+              {showPassword && (
+                <Field label="Passord">
+                  <input
+                    type="password"
+                    className="field-input"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </Field>
+              )}
 
-          {data.demoShareToken && (
-            <p className="rise mt-8 text-center text-sm text-ink-soft" style={{ animationDelay: '500ms' }}>
-              … eller se hva en vikar får:{' '}
-              <Link to="/v/$token" params={{ token: data.demoShareToken }} className="link-brass">
-                åpne vikarlenken til Ola
-              </Link>
-            </p>
-          )}
-        </section>
-      )}
+              {showPassword ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="w-full"
+                  loading={signingIn}
+                  onClick={signInWithPassword}
+                >
+                  Logg inn
+                </Button>
+              ) : (
+                <Button type="submit" variant="primary" className="w-full" loading={sending}>
+                  Send innloggingslenke
+                </Button>
+              )}
+            </form>
 
-      <p className="rise relative mt-12 text-center font-mono text-[0.62rem] uppercase tracking-[0.18em] text-ink-faint" style={{ animationDelay: '600ms' }}>
-        Demo-modus · innlogging uten passord · Google-innlogging kommer i fase 1
+            <div className="mt-5 text-center">
+              <button
+                onClick={() => setShowPassword((v) => !v)}
+                className="cursor-pointer text-[0.8rem] text-ink-soft underline-offset-2 transition-colors hover:text-brass-strong hover:underline"
+              >
+                {showPassword ? '← Bruk e-postlenke i stedet' : 'Jeg har passord →'}
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+
+      <p
+        className="rise relative mt-12 max-w-sm text-center font-mono text-[0.62rem] uppercase leading-relaxed tracking-[0.16em] text-ink-faint"
+        style={{ animationDelay: '300ms' }}
+      >
+        Kun for inviterte medlemmer · Google-innlogging kommer senere
       </p>
     </main>
   )

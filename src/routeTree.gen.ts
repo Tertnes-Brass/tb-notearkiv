@@ -18,7 +18,9 @@ import { Route as VTokenRouteImport } from './routes/v/$token'
 import { Route as ProsjekterProjectIdRouteImport } from './routes/prosjekter/$projectId'
 import { Route as ArkivWorkIdRouteImport } from './routes/arkiv/$workId'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
+import { Route as ApiDevSeedRouteImport } from './routes/api/dev-seed'
 import { Route as ApiFilesFileIdRouteImport } from './routes/api/files/$fileId'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -65,15 +67,26 @@ const ApiUploadRoute = ApiUploadRouteImport.update({
   path: '/api/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDevSeedRoute = ApiDevSeedRouteImport.update({
+  id: '/api/dev-seed',
+  path: '/api/dev-seed',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFilesFileIdRoute = ApiFilesFileIdRouteImport.update({
   id: '/api/files/$fileId',
   path: '/api/files/$fileId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/api/dev-seed': typeof ApiDevSeedRoute
   '/api/upload': typeof ApiUploadRoute
   '/arkiv/$workId': typeof ArkivWorkIdRoute
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
@@ -81,11 +94,13 @@ export interface FileRoutesByFullPath {
   '/arkiv/': typeof ArkivIndexRoute
   '/medlemmer/': typeof MedlemmerIndexRoute
   '/prosjekter/': typeof ProsjekterIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/files/$fileId': typeof ApiFilesFileIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/api/dev-seed': typeof ApiDevSeedRoute
   '/api/upload': typeof ApiUploadRoute
   '/arkiv/$workId': typeof ArkivWorkIdRoute
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
@@ -93,12 +108,14 @@ export interface FileRoutesByTo {
   '/arkiv': typeof ArkivIndexRoute
   '/medlemmer': typeof MedlemmerIndexRoute
   '/prosjekter': typeof ProsjekterIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/files/$fileId': typeof ApiFilesFileIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/api/dev-seed': typeof ApiDevSeedRoute
   '/api/upload': typeof ApiUploadRoute
   '/arkiv/$workId': typeof ArkivWorkIdRoute
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
@@ -106,6 +123,7 @@ export interface FileRoutesById {
   '/arkiv/': typeof ArkivIndexRoute
   '/medlemmer/': typeof MedlemmerIndexRoute
   '/prosjekter/': typeof ProsjekterIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/files/$fileId': typeof ApiFilesFileIdRoute
 }
 export interface FileRouteTypes {
@@ -113,6 +131,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/api/dev-seed'
     | '/api/upload'
     | '/arkiv/$workId'
     | '/prosjekter/$projectId'
@@ -120,11 +139,13 @@ export interface FileRouteTypes {
     | '/arkiv/'
     | '/medlemmer/'
     | '/prosjekter/'
+    | '/api/auth/$'
     | '/api/files/$fileId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/api/dev-seed'
     | '/api/upload'
     | '/arkiv/$workId'
     | '/prosjekter/$projectId'
@@ -132,11 +153,13 @@ export interface FileRouteTypes {
     | '/arkiv'
     | '/medlemmer'
     | '/prosjekter'
+    | '/api/auth/$'
     | '/api/files/$fileId'
   id:
     | '__root__'
     | '/'
     | '/login'
+    | '/api/dev-seed'
     | '/api/upload'
     | '/arkiv/$workId'
     | '/prosjekter/$projectId'
@@ -144,12 +167,14 @@ export interface FileRouteTypes {
     | '/arkiv/'
     | '/medlemmer/'
     | '/prosjekter/'
+    | '/api/auth/$'
     | '/api/files/$fileId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  ApiDevSeedRoute: typeof ApiDevSeedRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ArkivWorkIdRoute: typeof ArkivWorkIdRoute
   ProsjekterProjectIdRoute: typeof ProsjekterProjectIdRoute
@@ -157,6 +182,7 @@ export interface RootRouteChildren {
   ArkivIndexRoute: typeof ArkivIndexRoute
   MedlemmerIndexRoute: typeof MedlemmerIndexRoute
   ProsjekterIndexRoute: typeof ProsjekterIndexRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiFilesFileIdRoute: typeof ApiFilesFileIdRoute
 }
 
@@ -225,11 +251,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/dev-seed': {
+      id: '/api/dev-seed'
+      path: '/api/dev-seed'
+      fullPath: '/api/dev-seed'
+      preLoaderRoute: typeof ApiDevSeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/files/$fileId': {
       id: '/api/files/$fileId'
       path: '/api/files/$fileId'
       fullPath: '/api/files/$fileId'
       preLoaderRoute: typeof ApiFilesFileIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -238,6 +278,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  ApiDevSeedRoute: ApiDevSeedRoute,
   ApiUploadRoute: ApiUploadRoute,
   ArkivWorkIdRoute: ArkivWorkIdRoute,
   ProsjekterProjectIdRoute: ProsjekterProjectIdRoute,
@@ -245,6 +286,7 @@ const rootRouteChildren: RootRouteChildren = {
   ArkivIndexRoute: ArkivIndexRoute,
   MedlemmerIndexRoute: MedlemmerIndexRoute,
   ProsjekterIndexRoute: ProsjekterIndexRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiFilesFileIdRoute: ApiFilesFileIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,9 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
-import { asc, eq } from 'drizzle-orm'
+import { getRequest } from '@tanstack/react-start/server'
+import { asc, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
-import { parts, roles, userParts, users } from '../db/schema'
+import { invitations, memberProfiles, parts, roles, user, userParts } from '../db/schema'
 import { hasPermission, requireMe, requirePermission } from './access'
+import { getAuth } from './auth-instance'
 
 export const listMembers = createServerFn().handler(async () => {
   const me = await requireMe()
@@ -11,27 +13,38 @@ export const listMembers = createServerFn().handler(async () => {
 
   const rows = await d
     .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      roleId: users.roleId,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      roleId: memberProfiles.roleId,
       roleName: roles.name,
+      isActive: memberProfiles.isActive,
       partId: parts.id,
       partName: parts.nameNo,
       partSort: parts.sortOrder,
     })
-    .from(users)
-    .innerJoin(roles, eq(users.roleId, roles.id))
-    .leftJoin(userParts, eq(userParts.userId, users.id))
+    .from(memberProfiles)
+    .innerJoin(user, eq(memberProfiles.authUserId, user.id))
+    .innerJoin(roles, eq(memberProfiles.roleId, roles.id))
+    .leftJoin(userParts, eq(userParts.userId, user.id))
     .leftJoin(parts, eq(userParts.partId, parts.id))
-    .where(eq(users.isActive, true))
 
   const byId = new Map<
     string,
-    { id: string; name: string; email: string; roleId: string; roleName: string; parts: Array<{ id: string; name: string; sort: number }> }
+    {
+      id: string
+      name: string
+      email: string
+      roleId: string
+      roleName: string
+      isActive: boolean
+      parts: Array<{ id: string; name: string; sort: number }>
+    }
   >()
   for (const r of rows) {
-    const m = byId.get(r.id) ?? { id: r.id, name: r.name, email: r.email, roleId: r.roleId, roleName: r.roleName, parts: [] }
+    const m =
+      byId.get(r.id) ??
+      { id: r.id, name: r.name, email: r.email, roleId: r.roleId, roleName: r.roleName, isActive: r.isActive, parts: [] }
     if (r.partId && r.partName) m.parts.push({ id: r.partId, name: r.partName, sort: r.partSort ?? 999 })
     byId.set(r.id, m)
   }
@@ -44,13 +57,38 @@ export const listMembers = createServerFn().handler(async () => {
 
   const allParts = await d.select().from(parts).orderBy(asc(parts.sortOrder))
   const allRoles = await d.select().from(roles)
+  const canManage = hasPermission(me, 'members.manage')
+
+  const pendingInvites = canManage
+    ? await d
+        .select({
+          email: invitations.email,
+          roleId: invitations.roleId,
+          roleName: roles.name,
+          partIds: invitations.partIds,
+          createdAt: invitations.createdAt,
+          acceptedAt: invitations.acceptedAt,
+        })
+        .from(invitations)
+        .innerJoin(roles, eq(invitations.roleId, roles.id))
+        .orderBy(desc(invitations.createdAt))
+    : []
 
   return {
     members,
     allParts: allParts.filter((p) => p.section !== 'score'),
     allRoles,
-    canManage: hasPermission(me, 'members.manage'),
+    canManage,
     meId: me.id,
+    invites: pendingInvites
+      .filter((i) => !i.acceptedAt)
+      .map((i) => ({
+        email: i.email,
+        roleName: i.roleName,
+        partNames: (JSON.parse(i.partIds) as string[])
+          .map((id) => allParts.find((p) => p.id === id)?.nameNo ?? id),
+        createdAt: i.createdAt.getTime(),
+      })),
   }
 })
 
@@ -74,8 +112,62 @@ export const updateMemberParts = createServerFn({ method: 'POST' })
 export const updateMemberRole = createServerFn({ method: 'POST' })
   .validator(z.object({ userId: z.string(), roleId: z.string() }))
   .handler(async ({ data }) => {
-    await requirePermission('members.manage')
+    const me = await requirePermission('members.manage')
+    if (data.userId === me.id) throw new Error('Du kan ikke endre din egen rolle')
     const d = db()
-    await d.update(users).set({ roleId: data.roleId }).where(eq(users.id, data.userId))
+    await d.update(memberProfiles).set({ roleId: data.roleId }).where(eq(memberProfiles.authUserId, data.userId))
+    return { ok: true }
+  })
+
+export const inviteMember = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      email: z.string().email('Ugyldig e-post'),
+      name: z.string().optional(),
+      roleId: z.string(),
+      partIds: z.array(z.string()).max(4).default([]),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const me = await requirePermission('members.manage')
+    const email = data.email.trim().toLowerCase()
+    const name = data.name?.trim() || null
+    const d = db()
+    await d
+      .insert(invitations)
+      .values({
+        email,
+        name,
+        roleId: data.roleId,
+        partIds: JSON.stringify(data.partIds),
+        invitedBy: me.id,
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: invitations.email,
+        set: { name, roleId: data.roleId, partIds: JSON.stringify(data.partIds), acceptedAt: null },
+      })
+
+    // Prøv å sende innloggingslenke (magisk lenke). Feiler stille hvis e-post
+    // ikke er aktivert ennå — invitasjonen står uansett, og medlemmet kan logge
+    // inn selv på noter.saynain.com med e-posten sin.
+    let emailSent = false
+    try {
+      await getAuth().api.signInMagicLink({
+        body: { email, callbackURL: '/' },
+        headers: getRequest().headers,
+      })
+      emailSent = true
+    } catch {
+      emailSent = false
+    }
+    return { ok: true, emailSent }
+  })
+
+export const revokeInvitation = createServerFn({ method: 'POST' })
+  .validator(z.object({ email: z.string() }))
+  .handler(async ({ data }) => {
+    await requirePermission('members.manage')
+    await db().delete(invitations).where(eq(invitations.email, data.email.trim().toLowerCase()))
     return { ok: true }
   })

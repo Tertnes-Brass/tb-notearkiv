@@ -1,2 +1,5 @@
-# Kopier til .dev.vars for lokal utvikling
-SESSION_SECRET=minst-32-tegn-lang-hemmelighet-for-sesjonscookies
+# Kopier til .dev.vars for lokal utvikling. I produksjon settes BETTER_AUTH_SECRET
+# som Workers-secret (`wrangler secret put BETTER_AUTH_SECRET`), resten som vars.
+BETTER_AUTH_SECRET=minst-32-tegn-tilfeldig-hemmelighet
+BETTER_AUTH_URL=http://localhost:3000
+ADMIN_EMAIL=din@epost.no

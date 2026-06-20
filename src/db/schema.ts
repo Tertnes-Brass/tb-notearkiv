@@ -5,6 +5,11 @@ import {
   sqliteTable,
   text,
 } from 'drizzle-orm/sqlite-core'
+import { user } from './auth-schema'
+
+// better-auth eier autentiseringstabellene (user/session/account/verification).
+// Vi re-eksporterer dem så Drizzle Kit ser dem, og kobler RBAC til user.id.
+export * from './auth-schema'
 
 // ---------- Roller og tilgang (RBAC) ----------
 
@@ -25,17 +30,32 @@ export const rolePermissions = sqliteTable(
   (t) => [primaryKey({ columns: [t.roleId, t.permission] })],
 )
 
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  passwordHash: text('password_hash'),
-  googleId: text('google_id'),
+// Domeneprofil knyttet 1:1 til en better-auth-bruker. Holder RBAC (rolle +
+// aktiv-status) adskilt fra autentiseringen. Navn/e-post bor på better-auth user.
+export const memberProfiles = sqliteTable('member_profiles', {
+  authUserId: text('auth_user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
   roleId: text('role_id')
     .notNull()
     .references(() => roles.id),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+// Invitasjoner: admin forhåndsoppretter tillatt e-post + rolle + stemmer.
+// create-hooken i better-auth slipper kun gjennom e-poster som finnes her
+// (eller ADMIN_EMAIL-bootstrap). E-post lagres alltid med små bokstaver.
+export const invitations = sqliteTable('invitations', {
+  email: text('email').primaryKey(),
+  name: text('name'), // valgfritt fullt navn — settes på brukeren ved første innlogging
+  roleId: text('role_id')
+    .notNull()
+    .references(() => roles.id),
+  partIds: text('part_ids').notNull().default('[]'), // JSON-array av parts.id
+  invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
 })
 
 // ---------- Besetning / stemmer ----------
@@ -55,7 +75,7 @@ export const userParts = sqliteTable(
   {
     userId: text('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     partId: text('part_id')
       .notNull()
       .references(() => parts.id, { onDelete: 'cascade' }),
@@ -101,7 +121,7 @@ export const workFiles = sqliteTable(
     fileName: text('file_name').notNull(),
     fileSize: integer('file_size').notNull().default(0),
     pageCount: integer('page_count'),
-    uploadedBy: text('uploaded_by').references(() => users.id),
+    uploadedBy: text('uploaded_by').references(() => user.id, { onDelete: 'set null' }),
     uploadedAt: integer('uploaded_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [index('work_files_work_idx').on(t.workId)],
@@ -175,7 +195,7 @@ export const shareLinks = sqliteTable(
     // JSON-array med part-id-er vikaren skal ha tilgang til
     partIds: text('part_ids').notNull().default('[]'),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-    createdBy: text('created_by').references(() => users.id),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
     revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
@@ -187,7 +207,7 @@ export const downloadLog = sqliteTable(
   'download_log',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id').references(() => users.id),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
     shareLinkId: text('share_link_id').references(() => shareLinks.id),
     workFileId: text('work_file_id')
       .notNull()

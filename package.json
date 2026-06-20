@@ -12,7 +12,7 @@
 		"preview": "pnpm run build && vite preview",
 		"test": "vitest run",
 		"deploy": "pnpm run build && wrangler deploy",
-		"seed:remote": "tsx scripts/seed-remote.ts",
+		"auth:generate": "better-auth generate --config src/server/auth.cli.ts --output src/db/auth-schema.ts -y",
 		"cf-typegen": "wrangler types"
 	},
 	"dependencies": {
@@ -27,6 +27,7 @@
 		"@tanstack/react-router-ssr-query": "latest",
 		"@tanstack/react-start": "latest",
 		"@tanstack/router-plugin": "^1.132.0",
+		"better-auth": "1.6.20",
 		"drizzle-orm": "^0.45.2",
 		"lucide-react": "^0.545.0",
 		"pdf-lib": "^1.17.1",

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { db } from '../db'
 import {
-  downloadLog,
+  invitations,
   parts,
   projectWorks,
   projects,
@@ -10,8 +10,6 @@ import {
   seasons,
   settings,
   shareLinks,
-  userParts,
-  users,
   workFiles,
   workLinks,
   works,
@@ -38,74 +36,81 @@ export { DEMO_SHARE_TOKEN }
 const now = () => new Date()
 
 export async function isSeeded(): Promise<boolean> {
-  const d = db()
-  const row = await d.select({ id: users.id }).from(users).limit(1)
+  const row = await db().select({ id: works.id }).from(works).limit(1)
   return row.length > 0
 }
 
+/** Seeder besetning + roller (alltid), og — kun i dev — demoinnhold + invitasjoner. */
+export async function seedBaseConfig(): Promise<void> {
+  const d = db()
+  // Roller + rettigheter
+  if ((await d.select({ id: roles.id }).from(roles).limit(1)).length === 0) {
+    await d.insert(roles).values(SEED_ROLES.map((r) => ({ ...r })))
+    await d.insert(rolePermissions).values(SEED_ROLE_PERMISSIONS)
+  }
+  // Besetning
+  if ((await d.select({ id: parts.id }).from(parts).limit(1)).length === 0) {
+    for (const batch of chunkArray(BRASS_BAND_PARTS, 10)) {
+      await d.insert(parts).values(
+        batch.map((p) => ({
+          id: p.id,
+          sortOrder: p.sortOrder,
+          nameNo: p.nameNo,
+          nameEn: p.nameEn,
+          aliases: JSON.stringify(p.aliases),
+          section: p.section,
+        })),
+      )
+    }
+  }
+}
+
 /**
- * In-app-seeding for LOKAL utvikling (genererer 210 PDF-er i én request —
- * det er greit lokalt, men overskrider CPU-grensen på Workers gratisplan;
- * produksjon seedes derfor med `pnpm seed:remote` i stedet).
+ * Demoinnhold for LOKAL utvikling: verk, prosjekter, genererte PDF-er, og
+ * invitasjoner for demomedlemmene (så man kan logge inn som dem via magisk
+ * lenke i dev). Oppretter IKKE brukere — de lages ved første innlogging.
  */
 export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boolean }> {
-  if (env.DEMO_MODE !== 'true') throw new Error('Seeding er kun tilgjengelig i demo-modus')
   if (await isSeeded()) return { ok: true, alreadySeeded: true }
+  await seedBaseConfig()
 
   const d = db()
   const ts = now()
 
-  // ---------- Roller og rettigheter ----------
-  await d.insert(roles).values(SEED_ROLES.map((r) => ({ ...r })))
-  await d.insert(rolePermissions).values(SEED_ROLE_PERMISSIONS)
-
-  // ---------- Besetning ----------
-  await chunked(
-    BRASS_BAND_PARTS.map((p) => ({
-      id: p.id,
-      sortOrder: p.sortOrder,
-      nameNo: p.nameNo,
-      nameEn: p.nameEn,
-      aliases: JSON.stringify(p.aliases),
-      section: p.section,
-    })),
-    10,
-    (rows) => d.insert(parts).values(rows),
-  )
-
-  // ---------- Medlemmer ----------
-  const members = SEED_MEMBERS.map((m) => ({ ...m, id: newId() }))
-  await d.insert(users).values(
-    members.map((m) => ({ id: m.id, name: m.name, email: m.email, roleId: m.roleId, createdAt: ts })),
-  )
-  await d.insert(userParts).values(
-    members.flatMap((m) => m.partIds.map((partId) => ({ userId: m.id, partId, isPrimary: true }))),
-  )
-  const admin = members[0]!
-
-  // ---------- Verk ----------
-  const seedWorks = SEED_WORKS.map((sw) => ({ ...sw, id: newId() }))
-  await chunked(
-    seedWorks.map((sw) => ({
-      id: sw.id,
-      title: sw.title,
-      composer: sw.composer,
-      arranger: sw.arranger,
-      publisher: sw.publisher,
-      genre: sw.genre,
-      grade: sw.grade,
-      durationSec: sw.durationSec,
-      acquiredYear: sw.acquiredYear,
-      physicalLocation: sw.physicalLocation,
-      notes: sw.notes,
-      status: 'active' as const,
+  // Invitasjoner for demomedlemmene (rolle + stemmer settes ved innlogging)
+  await d.insert(invitations).values(
+    SEED_MEMBERS.map((m) => ({
+      email: m.email.toLowerCase(),
+      name: m.name,
+      roleId: m.roleId,
+      partIds: JSON.stringify(m.partIds),
+      invitedBy: null,
       createdAt: ts,
-      updatedAt: ts,
     })),
-    5,
-    (rows) => d.insert(works).values(rows),
   )
 
+  // Verk
+  const seedWorks = SEED_WORKS.map((sw) => ({ ...sw, id: newId() }))
+  for (const batch of chunkArray(seedWorks, 5)) {
+    await d.insert(works).values(
+      batch.map((sw) => ({
+        id: sw.id,
+        title: sw.title,
+        composer: sw.composer,
+        arranger: sw.arranger,
+        publisher: sw.publisher,
+        genre: sw.genre,
+        grade: sw.grade,
+        durationSec: sw.durationSec,
+        acquiredYear: sw.acquiredYear,
+        physicalLocation: sw.physicalLocation,
+        notes: sw.notes,
+        status: 'active' as const,
+        createdAt: ts,
+        updatedAt: ts,
+      })),
+    )
+  }
   await d.insert(workLinks).values(
     seedWorks.map((sw) => ({
       id: newId(),
@@ -116,7 +121,7 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
     })),
   )
 
-  // ---------- Sesonger og prosjekter ----------
+  // Sesonger + prosjekter
   const seasonRows = SEED_SEASONS.map((s) => ({ ...s, id: newId() }))
   await d.insert(seasons).values(seasonRows)
   const seasonId = new Map(seasonRows.map((s) => [s.name, s.id]))
@@ -151,13 +156,13 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
         recipientName: DEMO_SHARE_RECIPIENT,
         partIds: JSON.stringify(DEMO_SHARE_PART_IDS),
         expiresAt: new Date(Date.parse(DEMO_SHARE_EXPIRES)),
-        createdBy: admin.id,
+        createdBy: null,
         createdAt: ts,
       })
     }
   }
 
-  // ---------- Notefiler (genererte demo-PDF-er) ----------
+  // Genererte demo-PDF-er (uploadedBy = null; ingen bruker ennå)
   const fileRows: Array<typeof workFiles.$inferInsert> = []
   for (const sw of seedWorks) {
     const composerLine = [sw.composer, sw.arranger ? `arr. ${sw.arranger}` : null].filter(Boolean).join(' · ')
@@ -183,46 +188,16 @@ export async function seedDemoData(): Promise<{ ok: boolean; alreadySeeded?: boo
         fileName: `${sw.title} - ${part.nameEn}.pdf`,
         fileSize: bytes.byteLength,
         pageCount: isScore ? 4 : 2,
-        uploadedBy: admin.id,
+        uploadedBy: null,
         uploadedAt: ts,
       })
     }
   }
-  await chunked(fileRows, 8, (rows) => d.insert(workFiles).values(rows))
-
-  await d.insert(settings).values([
-    { key: 'bandName', value: 'Tertnes Brass' },
-    { key: 'demoSeededAt', value: ts.toISOString() },
-  ])
-
-  return { ok: true }
-}
-
-/** Sletter alt demoinnhold (DB + R2) slik at demoen kan nullstilles. */
-export async function resetDemoData(): Promise<{ ok: boolean }> {
-  if (env.DEMO_MODE !== 'true') throw new Error('Reset er kun tilgjengelig i demo-modus')
-  const d = db()
-
-  const allFiles = await d.select({ r2Key: workFiles.r2Key }).from(workFiles)
-  for (const batch of chunkArray(allFiles.map((f) => f.r2Key), 50)) {
-    await env.FILES.delete(batch)
+  for (const batch of chunkArray(fileRows, 8)) {
+    await d.insert(workFiles).values(batch)
   }
 
-  // Slett i avhengighetsrekkefølge
-  await d.delete(downloadLog)
-  await d.delete(shareLinks)
-  await d.delete(projectWorks)
-  await d.delete(projects)
-  await d.delete(seasons)
-  await d.delete(workLinks)
-  await d.delete(workFiles)
-  await d.delete(works)
-  await d.delete(userParts)
-  await d.delete(users)
-  await d.delete(rolePermissions)
-  await d.delete(roles)
-  await d.delete(parts)
-  await d.delete(settings)
+  await d.insert(settings).values([{ key: 'bandName', value: 'Tertnes Brass' }])
   return { ok: true }
 }
 
@@ -230,10 +205,4 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out
-}
-
-async function chunked<T>(rows: T[], size: number, insert: (rows: T[]) => Promise<unknown>) {
-  for (const batch of chunkArray(rows, size)) {
-    await insert(batch)
-  }
 }
