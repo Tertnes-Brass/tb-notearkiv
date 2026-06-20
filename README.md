@@ -4,36 +4,45 @@ Notearkiv, publisering og deling av noter for brass band — bygget for [Tertnes
 
 **Idéen:** Arkivaren katalogiserer verkene én gang, med PDF per stemme. Deretter er en ny konsert bare å klikke sammen et program — hvert medlem ser *sine* stemmer («Mine noter»), og vikarer får en tidsbegrenset lenke med kun sine stemmer, uten innlogging.
 
-> **Status: demo / fase 1.**
-> **Live demo:** [tb-notearkiv.saynain.workers.dev](https://tb-notearkiv.saynain.workers.dev) (også på [noter.saynain.com](https://noter.saynain.com)) — velg en persona og se deg rundt, eller [åpne vikarlenken](https://tb-notearkiv.saynain.workers.dev/v/demo-vikar-sommerkonsert).
-> Kjørbar lokalt uten Cloudflare-konto. Demodata er kunstige (inkl. genererte note-PDF-er) — ingen rettighetsbelagte noter i repoet.
+> **Status: fase 1 — i produksjon på [noter.saynain.com](https://noter.saynain.com)** (invitasjonsbasert; tom for innhold, klar til bruk).
+> Kjørbar lokalt uten Cloudflare-konto. All demodata er kunstig (inkl. genererte note-PDF-er) — ingen rettighetsbelagte noter i repoet.
 
-## Funksjoner i demoen
+## Funksjoner
 
 - **Verksarkiv** — katalog med komponist/arrangør, grad, varighet, fysisk plassering, søk
 - **Stemme-gjenkjenning** — slipp 20 PDF-er på et verk; stemmen gjettes fra filnavnet («Gaelforce – 2nd Cornet.pdf» → 2. kornett, norske og engelske navn)
 - **Prosjekter** — sesonger, program i rekkefølge, publisering (utkast er kun synlig for stab)
 - **Mine noter** — medlemmet ser neste konsert med direktelenker til egne stemmer, partitur og lytteeksempler (YouTube/lyd)
 - **Vikarlenker** — del valgte stemmer for ett prosjekt; lenken utløper automatisk og kan trekkes tilbake; kun hash av tokenet lagres
-- **RBAC** — roller (admin/arkivar/dirigent/musiker) med rettigheter i database, håndhevet i alle server-funksjoner
-- **Tilgangsstyrte filer** — alle PDF-er streames via API med sesjons- eller token-sjekk; ingen offentlige filer
+- **Innlogging** — [better-auth](https://better-auth.com): magisk e-postlenke + passord, invitasjonsbasert (ingen åpen registrering). Google kan legges til senere.
+- **RBAC** — roller (admin/arkivar/dirigent/musiker) med rettigheter i database, håndhevet server-side i alle funksjoner
+- **Tilgangsstyrte filer** — alle PDF-er streames via API med sesjons- eller token-sjekk; partitur er rettighetsstyrt (scores.view); ingen offentlige filer
+
+## Innlogging og invitasjon
+
+Ingen kan registrere seg selv. Flyten er:
+
+1. **Første admin** bootstrappes via `ADMIN_EMAIL` (wrangler.jsonc) — første innlogging med den adressen blir automatisk admin.
+2. Admin **inviterer** medlemmer (e-post + rolle + stemme) under *Medlemmer*. En innloggingslenke sendes på e-post (eller del-en-lenke via Spond hvis e-post ikke er satt opp).
+3. Medlemmet logger inn med **magisk lenke** (skriv e-post → klikk lenke) eller setter et passord.
 
 ## Kom i gang (lokalt)
 
 ```bash
 pnpm install
+cp .dev.vars.example .dev.vars          # sett ADMIN_EMAIL til din e-post
 pnpm exec wrangler d1 migrations apply tb-notearkiv --local
 pnpm dev
 ```
 
-Åpne appen, trykk **«Last inn demodata»**, og velg en persona:
+Seed besetning + roller + demoinnhold (kun i dev): `curl -X POST http://localhost:3000/api/dev-seed`.
+I dev sendes ikke e-post — magiske lenker skrives til serverkonsollen (og miniflares e-postmappe), så du kan klikke dem derfra. Logg inn med `ADMIN_EMAIL` for admin, eller en av de seedede demo-adressene (f.eks. `jonas@demo.tertnesbrass.no`).
 
-- **Sindre (administrator)** — full tilgang
-- **Ole (arkivar)** / **Eirik (dirigent)** — verk, prosjekter og deling
-- **Ingrid / Jonas / …(musikere)** — ser kun publiserte prosjekter og egne stemmer
-- Vikarvisningen: lenken «åpne vikarlenken til Ola» på innloggingssiden
+Nullstill lokalt ved å slette `.wrangler/state` og kjøre migreringen på nytt.
 
-Demodata kan nullstilles ved å slette `.wrangler/state` og kjøre migreringen på nytt.
+## Auth-skjema
+
+better-auth eier `user`/`session`/`account`/`verification` (generert til `src/db/auth-schema.ts` med `pnpm auth:generate`). RBAC ligger i egne tabeller: `member_profiles` (1:1 mot `user.id`, rolle + aktiv-status), `roles`, `role_permissions`, `parts`, `user_parts`, og `invitations`.
 
 ## Stack
 
@@ -51,21 +60,21 @@ Begrunnelse, datamodell og veikart: se [PLAN.md](PLAN.md).
 ## Deploy til Cloudflare
 
 ```bash
-pnpm exec wrangler d1 create tb-notearkiv     # legg database_id inn i wrangler.jsonc
-pnpm exec wrangler r2 bucket create tb-notearkiv-files   # krever at R2 er aktivert i dashboardet
+pnpm exec wrangler d1 create tb-notearkiv           # legg database_id inn i wrangler.jsonc
+pnpm exec wrangler r2 bucket create tb-notearkiv-files
 pnpm exec wrangler d1 migrations apply tb-notearkiv --remote
-pnpm exec wrangler secret put SESSION_SECRET  # min. 32 tegn
-pnpm run deploy
-pnpm seed:remote                              # demodata (genereres lokalt — gratisplanens
-                                              # CPU-grense tåler ikke in-app-seeding i prod)
+pnpm exec wrangler secret put BETTER_AUTH_SECRET    # `openssl rand -base64 32`
+pnpm exec wrangler email sending enable saynain.com # magisk lenke + reset (dashboard hvis token mangler scope)
+pnpm run deploy                                      # sett ADMIN_EMAIL + BETTER_AUTH_URL i wrangler.jsonc først
 ```
 
-> ⚠️ `DEMO_MODE` i [wrangler.jsonc](wrangler.jsonc) skrur på persona-innlogging uten passord. Sett `"DEMO_MODE": "false"` for alt annet enn demo. Ekte innlogging (Google via better-auth) kommer i fase 1, se veikartet.
+Logg så inn med `ADMIN_EMAIL`-adressen (blir admin automatisk) og inviter resten. Custom domene (`noter.saynain.com`) som ikke skal være bak Cloudflare Access må ha en egen Access-app med **Bypass / Everyone**, ellers blokkeres besøkende.
 
 ## Veikart (kort)
 
-- **Fase 1** — better-auth med Google + passord, import fra dagens Google Sheets/Drive, backup-cron (D1-dump + rclone til off-site)
-- **Fase 2** — PDF-splitter i nettleser (samle-PDF → stemmer), ZIP-nedlasting, e-postvarsler (Resend), nedlastingslogg-UI
+- **Fase 1 (gjort)** — better-auth (magisk lenke + passord, invitasjonsbasert), e-post via Cloudflare, prod på noter.saynain.com
+- **Neste** — Google-innlogging, import fra dagens Google Sheets/Drive, backup-cron (D1-dump + rclone til off-site)
+- **Fase 2** — PDF-splitter i nettleser (samle-PDF → stemmer), ZIP-nedlasting, e-postvarsler, nedlastingslogg-UI
 - **Fase 3** — «deploy your own»-dokumentasjon for andre korps, besetning som konfigurasjon (janitsjar m.m.), lisensvalg
 
 ## Lisens

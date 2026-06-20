@@ -16,7 +16,9 @@ Notearkiv for brass band (Tertnes Brass). TanStack Start (React) på Cloudflare 
 - `src/routes/api/` — server routes for filstrømming/opplasting (R2)
 - `src/lib/taxonomy.ts` — brass band-besetningen + filnavn→stemme-gjetting (seedes til DB, ikke hardkod i logikk)
 - `src/styles.css` — design-systemet («Konsertprogrammet»: papir/blekk/messing, Fraunces + Schibsted Grotesk); bruk tokens og klassene derfra, ikke nye ad-hoc-farger
-- Demodata: `src/server/seed.ts`, kun aktiv når `DEMO_MODE="true"` i wrangler.jsonc
+- **Auth: better-auth** — instans i `src/server/auth-instance.ts` (lat `getAuth()`), klient i `src/lib/auth-client.ts`, handler i `src/routes/api/auth/$.ts` (normaliserer e-post til små bokstaver). Invitasjonsbasert: `databaseHooks.user.create.before` avviser ikke-inviterte (gjelder både passord og magisk lenke); `ADMIN_EMAIL` bootstrapper første admin. RBAC kobles via `member_profiles`. Skjemaendring i auth: `pnpm auth:generate` → `drizzle-kit generate`. `auth.cli.ts` er KUN for skjemautledning (importerer ikke cloudflare:workers).
+- E-post: `src/server/email.ts` via Cloudflare `EMAIL`-binding; faller tilbake til konsoll-logg i dev / ved feil.
+- Demodata: `src/server/seed.ts`, kun via dev-ruten `/api/dev-seed` (gated på `import.meta.env.DEV`).
 
 ## Konvensjoner
 
