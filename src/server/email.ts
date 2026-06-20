@@ -9,7 +9,9 @@ import { env } from 'cloudflare:workers'
  * og passordinnlogging fungerer uansett.
  */
 
-const FROM = { email: 'noter@saynain.com', name: 'Tertnes Brass Notearkiv' }
+// Avsenderdomenet må være onboardet i Cloudflare Email Sending. Vi bruker
+// subdomenet noter.saynain.com (isolerer appens post fra saynain.com forøvrig).
+const FROM = { email: 'noreply@noter.saynain.com', name: 'Tertnes Brass Notearkiv' }
 
 type SendArgs = { to: string; subject: string; html: string; text: string }
 
