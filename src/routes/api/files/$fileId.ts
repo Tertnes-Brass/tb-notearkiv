@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '../../../db'
 import { downloadLog, projectWorks, shareLinks, workFiles } from '../../../db/schema'
 import { newId, sha256Hex } from '../../../lib/id'
-import { currentUser } from '../../../server/access'
+import { currentUser, hasPermission } from '../../../server/access'
 
 function contentTypeFor(fileName: string): string {
   if (/\.pdf$/i.test(fileName)) return 'application/pdf'
@@ -35,6 +35,12 @@ export const Route = createFileRoute('/api/files/$fileId')({
         const me = await currentUser()
         if (me) {
           userId = me.id
+          // Medlemmer har full arkivtilgang (stemmer/lyd/uplassert) by design,
+          // men partitur er rettighetsstyrt (scores.view) — håndhev det server-side,
+          // ikke bare i UI-et, slik at «styrbart partitur» faktisk gjelder.
+          if (file.kind === 'score' && !hasPermission(me, 'scores.view')) {
+            return new Response('Ingen tilgang til partitur', { status: 403 })
+          }
         } else if (shareToken) {
           // Vikartilgang: token må være gyldig, og filen må tilhøre prosjektet
           // og en av stemmene som er delt (lydfiler er alltid med).
@@ -66,13 +72,18 @@ export const Route = createFileRoute('/api/files/$fileId')({
         if (!object) return new Response('Filen mangler i lageret', { status: 404 })
 
         if (wantsDownload) {
-          await d.insert(downloadLog).values({
-            id: newId(),
-            userId,
-            shareLinkId,
-            workFileId: file.id,
-            at: new Date(),
-          })
+          // Revisjonslogg skal aldri blokkere selve nedlastingen.
+          try {
+            await d.insert(downloadLog).values({
+              id: newId(),
+              userId,
+              shareLinkId,
+              workFileId: file.id,
+              at: new Date(),
+            })
+          } catch (err) {
+            console.error('[download_log] kunne ikke logge nedlasting:', err)
+          }
         }
 
         const disposition = `${wantsDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.fileName)}"`
@@ -83,6 +94,8 @@ export const Route = createFileRoute('/api/files/$fileId')({
             'Content-Disposition': disposition,
             'Cache-Control': 'private, max-age=300',
             'X-Robots-Tag': 'noindex',
+            // Hindre at en delingstoken i URL-en lekker via Referer til tredjeparter.
+            'Referrer-Policy': 'no-referrer',
           },
         })
       },

@@ -16,6 +16,7 @@ type SendArgs = { to: string; subject: string; html: string; text: string }
 export async function sendEmail({ to, subject, html, text }: SendArgs): Promise<{ ok: boolean; fallback?: boolean }> {
   const binding = (env as unknown as { EMAIL?: { send: (m: unknown) => Promise<unknown> } }).EMAIL
   if (!binding || typeof binding.send !== 'function') {
+    // Binding mangler (lokal dev): logg innholdet så lenker kan testes.
     console.log(`\n[e-post:fallback] Til: ${to}\nEmne: ${subject}\n${text}\n`)
     return { ok: false, fallback: true }
   }
@@ -23,7 +24,11 @@ export async function sendEmail({ to, subject, html, text }: SendArgs): Promise<
     await binding.send({ to, from: FROM, subject, html, text })
     return { ok: true }
   } catch (err) {
-    console.error('[e-post] sending feilet:', err)
+    // Binding finnes, men sending feilet (f.eks. domenet ikke onboardet ennå).
+    // Logg innholdet som nødløsning — lenken kan da hentes via `wrangler tail`
+    // for å bootstrappe første admin før e-post er ferdig satt opp.
+    console.error('[e-post] sending feilet, logger innhold som nødløsning:', err)
+    console.log(`\n[e-post:fallback] Til: ${to}\nEmne: ${subject}\n${text}\n`)
     return { ok: false }
   }
 }

@@ -6,7 +6,7 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { env } from 'cloudflare:workers'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
-import { invitations, memberProfiles, userParts } from '../db/schema'
+import { invitations, memberProfiles, user, userParts } from '../db/schema'
 import { magicLinkEmail, resetPasswordEmail, sendEmail } from './email'
 
 const MAGIC_LINK_EXPIRY = 60 * 30 // 30 min
@@ -96,15 +96,23 @@ function buildAuth() {
             if (!access) {
               throw new APIError('FORBIDDEN', { message: 'Du må være invitert for å logge inn.' })
             }
+            // Normaliser e-post til små bokstaver: SQLite UNIQUE er case-sensitiv,
+            // så uten dette kunne «A@x» og «a@x» bli to kontoer for samme person.
+            const email = newUser.email.trim().toLowerCase()
             // Sett et navn hvis registreringen ikke ga ett (magisk lenke gjør ikke det).
-            const name = newUser.name?.trim() || access.name?.trim() || deriveName(newUser.email)
-            return { data: { ...newUser, name } }
+            const name = newUser.name?.trim() || access.name?.trim() || deriveName(email)
+            return { data: { ...newUser, email, name } }
           },
           // LINK: better-auth user.id finnes nå — skriv domeneradene.
           after: async (createdUser: { id: string; email: string }) => {
             const access = await resolveAccess(createdUser.email)
-            if (!access) return
             const d = db()
+            if (!access) {
+              // Invitasjonen ble trukket tilbake mellom before og after — fjern den
+              // foreldreløse brukerraden så den ikke blir en konto uten profil.
+              await d.delete(user).where(eq(user.id, createdUser.id))
+              return
+            }
             await d
               .insert(memberProfiles)
               .values({ authUserId: createdUser.id, roleId: access.roleId, isActive: true, createdAt: new Date() })

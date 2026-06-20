@@ -2,10 +2,22 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { asc, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { invitations, memberProfiles, parts, roles, user, userParts } from '../db/schema'
 import { hasPermission, requireMe, requirePermission } from './access'
 import { getAuth } from './auth-instance'
+
+/** Sjekker at rolle + stemmer faktisk finnes (partIds lagres uten FK i JSON). */
+async function assertValidRoleAndParts(roleId: string, partIds: string[]): Promise<void> {
+  const d = db()
+  const role = await d.select({ id: roles.id }).from(roles).where(eq(roles.id, roleId)).limit(1)
+  if (!role[0]) throw new Error('Ukjent rolle')
+  if (partIds.length > 0) {
+    const found = await d.select({ id: parts.id }).from(parts).where(inArray(parts.id, partIds))
+    if (found.length !== new Set(partIds).size) throw new Error('Ukjent stemme')
+  }
+}
 
 export const listMembers = createServerFn().handler(async () => {
   const me = await requireMe()
@@ -99,6 +111,7 @@ export const updateMemberParts = createServerFn({ method: 'POST' })
     if (me.id !== data.userId && !hasPermission(me, 'members.manage')) {
       throw new Error('Du kan bare endre din egen stemme')
     }
+    await assertValidRoleAndParts(me.roleId, data.partIds) // gjenbruk: validerer partIds
     const d = db()
     await d.delete(userParts).where(eq(userParts.userId, data.userId))
     if (data.partIds.length > 0) {
@@ -114,6 +127,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const me = await requirePermission('members.manage')
     if (data.userId === me.id) throw new Error('Du kan ikke endre din egen rolle')
+    await assertValidRoleAndParts(data.roleId, [])
     const d = db()
     await d.update(memberProfiles).set({ roleId: data.roleId }).where(eq(memberProfiles.authUserId, data.userId))
     return { ok: true }
@@ -130,6 +144,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     const me = await requirePermission('members.manage')
+    await assertValidRoleAndParts(data.roleId, data.partIds)
     const email = data.email.trim().toLowerCase()
     const name = data.name?.trim() || null
     const d = db()
