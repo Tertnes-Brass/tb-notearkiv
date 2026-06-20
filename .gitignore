@@ -16,3 +16,6 @@ todos.json
 !.dev.vars.example
 !.env.example
 .seed-tmp
+
+# Lokale backup-eksporter (wrangler d1 export / restore-test)
+/backups/
