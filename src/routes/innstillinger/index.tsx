@@ -1,0 +1,447 @@
+import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+import { toast, toastError } from '../../components/toast'
+import { Button, Field, Kicker, Modal, Stamp } from '../../components/ui'
+import { SECTION_LABELS } from '../../lib/taxonomy'
+import {
+  createPart,
+  createRole,
+  deletePart,
+  deleteRole,
+  getSettingsData,
+  movePart,
+  renameRole,
+  setRolePermission,
+  updatePart,
+} from '../../server/settings'
+
+export const Route = createFileRoute('/innstillinger/')({
+  beforeLoad: ({ context }) => {
+    if (!context.me) throw redirect({ to: '/login' })
+    const ok = context.me.permissions.includes('*') || context.me.permissions.includes('settings.manage')
+    if (!ok) throw redirect({ to: '/' })
+  },
+  loader: () => getSettingsData(),
+  component: SettingsPage,
+})
+
+type Data = Awaited<ReturnType<typeof getSettingsData>>
+type Part = Data['parts'][number]
+
+function SettingsPage() {
+  const data = Route.useLoaderData()
+
+  return (
+    <div className="space-y-12">
+      <header className="rise">
+        <Kicker className="mb-2">Administrasjon</Kicker>
+        <h1 className="display-title text-4xl font-semibold italic text-ink sm:text-5xl">Innstillinger</h1>
+        <p className="mt-2 text-sm text-ink-soft">Besetning og roller for korpset. Endringer gjelder umiddelbart.</p>
+      </header>
+
+      <PartsSection data={data} />
+      <RolesSection data={data} />
+    </div>
+  )
+}
+
+// ---------- Besetning ----------
+
+function PartsSection({ data }: { data: Data }) {
+  const router = useRouter()
+  const [editing, setEditing] = useState<Part | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const act = async (id: string, fn: () => Promise<unknown>) => {
+    setBusy(id)
+    try {
+      await fn()
+      await router.invalidate()
+    } catch (err) {
+      toastError(err)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section className="rise" style={{ animationDelay: '80ms' }}>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="display-title text-2xl font-semibold text-ink">Besetning</h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            {data.parts.length} stemmer. Aliasene avgjør hvordan filnavn gjenkjennes ved opplasting.
+          </p>
+        </div>
+        <Button variant="primary" onClick={() => setCreating(true)}>
+          + Ny stemme
+        </Button>
+      </div>
+
+      <div className="sheet overflow-hidden">
+        <ul className="divide-y divide-[var(--line)]">
+          {data.parts.map((p, i) => (
+            <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+              <span className="flex shrink-0 flex-col">
+                <button
+                  className="grid h-5 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none"
+                  disabled={busy === p.id || i === 0}
+                  aria-label="Flytt opp"
+                  onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'up' } }))}
+                >
+                  <Chevron dir="up" />
+                </button>
+                <button
+                  className="grid h-5 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none"
+                  disabled={busy === p.id || i === data.parts.length - 1}
+                  aria-label="Flytt ned"
+                  onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'down' } }))}
+                >
+                  <Chevron dir="down" />
+                </button>
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-[0.95rem] font-semibold text-ink">{p.nameNo}</span>
+                  <span className="font-mono text-[0.66rem] uppercase tracking-[0.1em] text-ink-faint">{p.nameEn}</span>
+                </span>
+                <span className="mt-0.5 block truncate font-mono text-[0.64rem] text-ink-faint">
+                  {SECTION_LABELS[p.section as keyof typeof SECTION_LABELS] ?? p.section}
+                  {p.aliases.length > 0 ? ` · alias: ${p.aliases.join(', ')}` : ' · ingen alias'}
+                </span>
+              </span>
+
+              {p.inUse > 0 && <Stamp>{p.inUse} i bruk</Stamp>}
+              <span className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => setEditing(p)}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
+                >
+                  Rediger
+                </button>
+                <button
+                  disabled={busy === p.id}
+                  onClick={() => {
+                    if (p.fileCount > 0) {
+                      toast(`«${p.nameNo}» er i bruk på ${p.fileCount} fil(er) og kan ikke slettes`, 'error')
+                      return
+                    }
+                    act(p.id, () => deletePart({ data: { id: p.id } }))
+                  }}
+                  className="cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-medium text-danger/80 transition-colors hover:bg-danger/10 hover:text-danger"
+                >
+                  Slett
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <PartFormModal
+        open={creating || editing !== null}
+        part={editing}
+        sections={data.sections}
+        onClose={() => {
+          setCreating(false)
+          setEditing(null)
+        }}
+        onSaved={async () => {
+          setCreating(false)
+          setEditing(null)
+          await router.invalidate()
+        }}
+      />
+    </section>
+  )
+}
+
+function PartFormModal({
+  open,
+  part,
+  sections,
+  onClose,
+  onSaved,
+}: {
+  open: boolean
+  part: Part | null
+  sections: readonly string[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [nameNo, setNameNo] = useState('')
+  const [nameEn, setNameEn] = useState('')
+  const [section, setSection] = useState<string>('cornet')
+  const [aliases, setAliases] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setNameNo(part?.nameNo ?? '')
+    setNameEn(part?.nameEn ?? '')
+    setSection(part?.section ?? 'cornet')
+    setAliases(part?.aliases.join(', ') ?? '')
+  }, [open, part])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nameNo.trim() || !nameEn.trim()) {
+      toast('Norsk og engelsk navn må fylles ut', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const aliasArr = aliases
+        .split(',')
+        .map((a) => a.trim())
+        .filter(Boolean)
+      const payload = { nameNo, nameEn, section: section as never, aliases: aliasArr }
+      if (part) await updatePart({ data: { id: part.id, ...payload } })
+      else await createPart({ data: payload })
+      toast(part ? 'Stemme oppdatert' : 'Stemme lagt til')
+      onSaved()
+    } catch (err) {
+      toastError(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={part ? 'Rediger stemme' : 'Ny stemme'} kicker="Besetning">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Navn (norsk) *">
+            <input className="field-input" value={nameNo} onChange={(e) => setNameNo(e.target.value)} placeholder="2. kornett" autoFocus />
+          </Field>
+          <Field label="Navn (engelsk) *" hint="Brukes på genererte etiketter">
+            <input className="field-input" value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="2nd Cornet" />
+          </Field>
+        </div>
+        <Field label="Seksjon">
+          <select className="field-input" value={section} onChange={(e) => setSection(e.target.value)}>
+            {sections.map((s) => (
+              <option key={s} value={s}>
+                {SECTION_LABELS[s as keyof typeof SECTION_LABELS] ?? s}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Aliaser" hint="Komma-separert. Treff i filnavn → riktig stemme. F.eks: 2nd cornet, cornet 2, kornett 2">
+          <input className="field-input" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="2nd cornet, 2. kornett, cornet 2" />
+        </Field>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Avbryt
+          </Button>
+          <Button type="submit" variant="primary" loading={saving}>
+            {part ? 'Lagre' : 'Legg til'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ---------- Roller og rettigheter ----------
+
+function RolesSection({ data }: { data: Data }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [newRoleName, setNewRoleName] = useState('')
+
+  const toggle = async (roleId: string, permission: string, enabled: boolean) => {
+    setBusy(`${roleId}:${permission}`)
+    try {
+      await setRolePermission({ data: { roleId, permission, enabled } })
+      await router.invalidate()
+    } catch (err) {
+      toastError(err)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section className="rise" style={{ animationDelay: '160ms' }}>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="display-title text-2xl font-semibold text-ink">Roller og tilgang</h2>
+          <p className="mt-1 text-sm text-ink-soft">Hvilke rettigheter hver rolle har. Administrator har alltid full tilgang.</p>
+        </div>
+        <Button variant="secondary" onClick={() => setCreating(true)}>
+          + Ny rolle
+        </Button>
+      </div>
+
+      <div className="sheet overflow-x-auto">
+        <table className="w-full min-w-[640px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-line">
+              <th className="px-4 py-3 text-left font-mono text-[0.62rem] uppercase tracking-[0.14em] text-ink-faint sm:px-5">
+                Rolle
+              </th>
+              {data.permissionCatalog.map((perm) => (
+                <th key={perm.key} className="px-2 py-3 text-center" title={perm.hint}>
+                  <span className="block text-[0.7rem] font-semibold leading-tight text-ink-soft">{perm.label}</span>
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data.roles.map((role) => (
+              <tr key={role.id} className="hairline-row">
+                <td className="px-4 py-3 sm:px-5">
+                  <span className="flex items-center gap-2">
+                    <span className="font-semibold text-ink">{role.name}</span>
+                    {role.isSystem ? (
+                      <Stamp>system</Stamp>
+                    ) : (
+                      <RenameRole
+                        roleId={role.id}
+                        current={role.name}
+                        onDone={() => router.invalidate()}
+                      />
+                    )}
+                  </span>
+                  <span className="mt-0.5 block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-ink-faint">
+                    {role.memberCount} medlem{role.memberCount === 1 ? '' : 'mer'}
+                  </span>
+                </td>
+                {data.permissionCatalog.map((perm) => {
+                  const on = role.isAdmin || role.permissions.includes(perm.key)
+                  return (
+                    <td key={perm.key} className="px-2 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={role.isAdmin || busy === `${role.id}:${perm.key}`}
+                        onChange={(e) => toggle(role.id, perm.key, e.target.checked)}
+                        className="h-4 w-4 cursor-pointer accent-[var(--brass)] disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`${role.name}: ${perm.label}`}
+                      />
+                    </td>
+                  )
+                })}
+                <td className="px-3 py-3 text-right">
+                  {!role.isSystem && (
+                    <button
+                      disabled={busy === role.id}
+                      onClick={async () => {
+                        setBusy(role.id)
+                        try {
+                          await deleteRole({ data: { roleId: role.id } })
+                          toast('Rolle slettet')
+                          await router.invalidate()
+                        } catch (err) {
+                          toastError(err)
+                        } finally {
+                          setBusy(null)
+                        }
+                      }}
+                      className="cursor-pointer font-mono text-[0.62rem] uppercase tracking-wide text-danger/70 hover:text-danger"
+                    >
+                      Slett
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 font-mono text-[0.64rem] uppercase tracking-[0.12em] text-ink-faint">
+        Administrator = full tilgang (kan ikke endres)
+      </p>
+
+      <Modal open={creating} onClose={() => setCreating(false)} title="Ny rolle" kicker="Roller">
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (!newRoleName.trim()) return
+            try {
+              await createRole({ data: { name: newRoleName.trim() } })
+              toast('Rolle opprettet — velg rettigheter i matrisen')
+              setNewRoleName('')
+              setCreating(false)
+              await router.invalidate()
+            } catch (err) {
+              toastError(err)
+            }
+          }}
+          className="space-y-4"
+        >
+          <Field label="Navn *" hint="F.eks. «Notearkivar» eller «Styremedlem»">
+            <input className="field-input" value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} autoFocus placeholder="Rollenavn" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+              Avbryt
+            </Button>
+            <Button type="submit" variant="primary">
+              Opprett
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </section>
+  )
+}
+
+function RenameRole({ roleId, current, onDone }: { roleId: string; current: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(current)
+  return (
+    <>
+      <button
+        onClick={() => {
+          setName(current)
+          setOpen(true)
+        }}
+        className="cursor-pointer font-mono text-[0.58rem] uppercase tracking-wide text-ink-faint hover:text-brass-strong"
+        aria-label="Gi nytt navn"
+      >
+        endre navn
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Gi nytt navn" kicker="Rolle">
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            try {
+              await renameRole({ data: { roleId, name: name.trim() } })
+              setOpen(false)
+              onDone()
+            } catch (err) {
+              toastError(err)
+            }
+          }}
+          className="space-y-4"
+        >
+          <Field label="Navn">
+            <input className="field-input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Avbryt
+            </Button>
+            <Button type="submit" variant="primary">
+              Lagre
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </>
+  )
+}
+
+function Chevron({ dir }: { dir: 'up' | 'down' }) {
+  return (
+    <svg width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden style={{ transform: dir === 'down' ? 'rotate(180deg)' : undefined }}>
+      <path d="M1 5l3.5-3.5L8 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

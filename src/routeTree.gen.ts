@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProsjekterIndexRouteImport } from './routes/prosjekter/index'
 import { Route as MedlemmerIndexRouteImport } from './routes/medlemmer/index'
+import { Route as InnstillingerIndexRouteImport } from './routes/innstillinger/index'
 import { Route as ArkivIndexRouteImport } from './routes/arkiv/index'
 import { Route as VTokenRouteImport } from './routes/v/$token'
 import { Route as ProsjekterProjectIdRouteImport } from './routes/prosjekter/$projectId'
@@ -40,6 +41,11 @@ const ProsjekterIndexRoute = ProsjekterIndexRouteImport.update({
 const MedlemmerIndexRoute = MedlemmerIndexRouteImport.update({
   id: '/medlemmer/',
   path: '/medlemmer/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InnstillingerIndexRoute = InnstillingerIndexRouteImport.update({
+  id: '/innstillinger/',
+  path: '/innstillinger/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ArkivIndexRoute = ArkivIndexRouteImport.update({
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
   '/v/$token': typeof VTokenRoute
   '/arkiv/': typeof ArkivIndexRoute
+  '/innstillinger/': typeof InnstillingerIndexRoute
   '/medlemmer/': typeof MedlemmerIndexRoute
   '/prosjekter/': typeof ProsjekterIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
   '/v/$token': typeof VTokenRoute
   '/arkiv': typeof ArkivIndexRoute
+  '/innstillinger': typeof InnstillingerIndexRoute
   '/medlemmer': typeof MedlemmerIndexRoute
   '/prosjekter': typeof ProsjekterIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
   '/v/$token': typeof VTokenRoute
   '/arkiv/': typeof ArkivIndexRoute
+  '/innstillinger/': typeof InnstillingerIndexRoute
   '/medlemmer/': typeof MedlemmerIndexRoute
   '/prosjekter/': typeof ProsjekterIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/prosjekter/$projectId'
     | '/v/$token'
     | '/arkiv/'
+    | '/innstillinger/'
     | '/medlemmer/'
     | '/prosjekter/'
     | '/api/auth/$'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/prosjekter/$projectId'
     | '/v/$token'
     | '/arkiv'
+    | '/innstillinger'
     | '/medlemmer'
     | '/prosjekter'
     | '/api/auth/$'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/prosjekter/$projectId'
     | '/v/$token'
     | '/arkiv/'
+    | '/innstillinger/'
     | '/medlemmer/'
     | '/prosjekter/'
     | '/api/auth/$'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   ProsjekterProjectIdRoute: typeof ProsjekterProjectIdRoute
   VTokenRoute: typeof VTokenRoute
   ArkivIndexRoute: typeof ArkivIndexRoute
+  InnstillingerIndexRoute: typeof InnstillingerIndexRoute
   MedlemmerIndexRoute: typeof MedlemmerIndexRoute
   ProsjekterIndexRoute: typeof ProsjekterIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/medlemmer'
       fullPath: '/medlemmer/'
       preLoaderRoute: typeof MedlemmerIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/innstillinger/': {
+      id: '/innstillinger/'
+      path: '/innstillinger'
+      fullPath: '/innstillinger/'
+      preLoaderRoute: typeof InnstillingerIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/arkiv/': {
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProsjekterProjectIdRoute: ProsjekterProjectIdRoute,
   VTokenRoute: VTokenRoute,
   ArkivIndexRoute: ArkivIndexRoute,
+  InnstillingerIndexRoute: InnstillingerIndexRoute,
   MedlemmerIndexRoute: MedlemmerIndexRoute,
   ProsjekterIndexRoute: ProsjekterIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

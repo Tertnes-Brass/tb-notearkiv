@@ -103,7 +103,9 @@ function UserMenu({ me }: { me: Me }) {
   )
 }
 
-const NAV: Array<{ to: '/' | '/prosjekter' | '/arkiv' | '/medlemmer'; label: string; exact?: boolean }> = [
+type NavItem = { to: '/' | '/prosjekter' | '/arkiv' | '/medlemmer' | '/innstillinger'; label: string; exact?: boolean }
+
+const BASE_NAV: NavItem[] = [
   { to: '/', label: 'Hjem', exact: true },
   { to: '/prosjekter', label: 'Prosjekter' },
   { to: '/arkiv', label: 'Arkiv' },
@@ -111,6 +113,10 @@ const NAV: Array<{ to: '/' | '/prosjekter' | '/arkiv' | '/medlemmer'; label: str
 ]
 
 export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
+  const canManageSettings = me.permissions.includes('*') || me.permissions.includes('settings.manage')
+  const NAV: NavItem[] = canManageSettings
+    ? [...BASE_NAV, { to: '/innstillinger', label: 'Innstillinger' }]
+    : BASE_NAV
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur-md">
@@ -164,7 +170,7 @@ export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
       <footer className="border-t border-line">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 sm:px-6">
           <p className="font-mono text-[0.64rem] uppercase tracking-[0.18em] text-ink-faint">
-            Tertnes Brass · Notearkiv — demo
+            Tertnes Brass · Notearkiv
           </p>
           <div className="staff-rule w-28 opacity-50" aria-hidden />
         </div>
