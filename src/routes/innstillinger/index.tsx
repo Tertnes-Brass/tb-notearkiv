@@ -65,6 +65,8 @@ function PartsSection({ data }: { data: Data }) {
     }
   }
 
+  const partName = new Map(data.parts.map((p) => [p.id, p.nameNo]))
+
   return (
     <section className="rise" style={{ animationDelay: '80ms' }}>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -82,7 +84,11 @@ function PartsSection({ data }: { data: Data }) {
       <div className="sheet overflow-hidden">
         <ul className="divide-y divide-[var(--line)]">
           {data.parts.map((p, i) => (
-            <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+            <li
+              key={p.id}
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5"
+              style={p.parentId ? { paddingLeft: '2.5rem' } : undefined}
+            >
               <span className="flex shrink-0 flex-col">
                 <button
                   className="grid h-5 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none"
@@ -108,6 +114,7 @@ function PartsSection({ data }: { data: Data }) {
                   <span className="font-mono text-[0.66rem] uppercase tracking-[0.1em] text-ink-faint">{p.nameEn}</span>
                 </span>
                 <span className="mt-0.5 block truncate font-mono text-[0.64rem] text-ink-faint">
+                  {p.parentId ? `↳ ${partName.get(p.parentId) ?? '?'} · ` : ''}
                   {SECTION_LABELS[p.section as keyof typeof SECTION_LABELS] ?? p.section}
                   {p.aliases.length > 0 ? ` · alias: ${p.aliases.join(', ')}` : ' · ingen alias'}
                 </span>
@@ -144,6 +151,7 @@ function PartsSection({ data }: { data: Data }) {
         open={creating || editing !== null}
         part={editing}
         sections={data.sections}
+        allParts={data.parts}
         onClose={() => {
           setCreating(false)
           setEditing(null)
@@ -162,12 +170,14 @@ function PartFormModal({
   open,
   part,
   sections,
+  allParts,
   onClose,
   onSaved,
 }: {
   open: boolean
   part: Part | null
   sections: readonly string[]
+  allParts: Part[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -175,6 +185,7 @@ function PartFormModal({
   const [nameEn, setNameEn] = useState('')
   const [section, setSection] = useState<string>('cornet')
   const [aliases, setAliases] = useState('')
+  const [parentId, setParentId] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -183,7 +194,14 @@ function PartFormModal({
     setNameEn(part?.nameEn ?? '')
     setSection(part?.section ?? 'cornet')
     setAliases(part?.aliases.join(', ') ?? '')
+    setParentId(part?.parentId ?? '')
   }, [open, part])
+
+  // Kun rot-stemmer (uten egen forelder) kan være forelder — maks to nivåer.
+  // En stemme som selv har understemmer kan ikke gjøres til understemme.
+  const hasChildren = !!part && allParts.some((p) => p.parentId === part.id)
+  const parentOptions = allParts.filter((p) => !p.parentId && p.section !== 'score' && p.id !== part?.id)
+  const canHaveParent = !hasChildren && section !== 'score' && parentOptions.length > 0
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -197,7 +215,13 @@ function PartFormModal({
         .split(',')
         .map((a) => a.trim())
         .filter(Boolean)
-      const payload = { nameNo, nameEn, section: section as never, aliases: aliasArr }
+      const payload = {
+        nameNo,
+        nameEn,
+        section: section as never,
+        aliases: aliasArr,
+        parentId: canHaveParent && parentId ? parentId : null,
+      }
       if (part) await updatePart({ data: { id: part.id, ...payload } })
       else await createPart({ data: payload })
       toast(part ? 'Stemme oppdatert' : 'Stemme lagt til')
@@ -229,6 +253,26 @@ function PartFormModal({
             ))}
           </select>
         </Field>
+        {canHaveParent && (
+          <Field
+            label="Forelder-stemme"
+            hint="Gjør denne til en understemme. Den som får forelderen tildelt, får tilgang til alle understemmene — f.eks. «Slagverk» over «Slagverk 1/2/3»."
+          >
+            <select className="field-input" value={parentId} onChange={(e) => setParentId(e.target.value)}>
+              <option value="">Ingen — selvstendig stemme / seksjon</option>
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nameNo}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {hasChildren && (
+          <p className="font-mono text-[0.64rem] uppercase tracking-[0.1em] text-ink-faint">
+            Denne stemmen har understemmer og er derfor en seksjons-stemme (kan ikke selv få forelder).
+          </p>
+        )}
         <Field label="Aliaser" hint="Komma-separert. Treff i filnavn → riktig stemme. F.eks: 2nd cornet, cornet 2, kornett 2">
           <input className="field-input" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="2nd cornet, 2. kornett, cornet 2" />
         </Field>

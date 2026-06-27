@@ -59,24 +59,25 @@ oppstartssjekk (fase 3) som fail-faster hvis privilegerte roller mangler
   `deletePart` avviser forelder med barn. `archive.viewAll` seedet til
   archivist+conductor (fresh installs). UI (tre-visning, leder-binding) gjøres i
   fase 4 sammen med gaten.
-- **Fase 3 — Forutsetnings-vakt:** oppstarts-/health-sjekk som fail-faster hvis
-  `archivist`/`conductor` mangler `archive.viewAll` FØR gaten aktiveres. Bygg tre,
-  sett `section_leaders`, varsle besetningen.
-- **Fase 4 — Hard fil-gate (eneste brukersynlige innstramming, separat deploy):**
-  endre `$fileId.ts` (begge grener) + filtrer `getWork`/`assembleRepertoire`/
-  `getShareView` server-side. Snapshot share-scope i `createShare`. UI: tre-visning
-  i `/innstillinger`, forelder-velger på stemmer, seksjonsleder-binding i `/medlemmer`.
-
-  > **MÅ håndteres i fase 4 (funn under fase 2):** i dag kan et medlem velge sin
-  > EGEN stemme (self-service i `/medlemmer`, `updateMemberParts` tillater
-  > `me.id === userId`). Under hard tilgang ville det la et medlem gi seg selv en
-  > vilkårlig blad-stemme og dermed lese den stemmens filer — en omgåelse av hele
-  > modellen. Fase 2 blokkerer self-valg av *forelder*-stemmer, men IKKE blad.
-  > Fase 4 må enten (a) fjerne self-service stemmevalg helt (kun ledelse/leder
-  > tildeler), eller (b) la self-service kun foreslå/«ønske» en stemme som en
-  > leder/admin bekrefter. Anbefalt: (a) — enklest og tett. Krever UI-endring i
-  > `/medlemmer` (skjul dropdown for ikke-privilegerte) + server-avvisning av
-  > self-edit i `updateMemberParts` når hard gate er på.
+- **Fase 3 — Forutsetnings-vakt (FERDIG, realisert som fail-safe):** i stedet for
+  en egen oppstartssjekk gir fil-gaten **implisitt fullt innsyn til `works.manage`**
+  (i tillegg til `archive.viewAll`). Siden seedede `archivist`+`conductor` har
+  `works.manage`, kan de aldri låses ute selv om `archive.viewAll` skulle mangle i
+  prod. `archive.viewAll` er dessuten synlig i rolle-matrisen så egendefinerte
+  «se alt»-roller kan få den. Gjenstår som DRIFT (ikke kode): bygg treet i
+  `/innstillinger`, sett `section_leaders` i `/medlemmer`, varsle besetningen.
+- **Fase 4 — Hard fil-gate (FERDIG i kode, IKKE deployet/aktivert ennå):**
+  `$fileId.ts` bruker nå felles `memberCanAccessFile`/`shareAllows`
+  (`src/server/file-access.ts`); `getWork`/`assembleRepertoire` filtrerer
+  part-filer server-side via `memberCanSeeFile`; `getShareView` bruker samme
+  `shareAllows` som gaten; `createShare` snapshotter forelder→løv. UI: forelder-
+  velger + tre-visning i `/innstillinger`, seksjonsleder-binding (`LeaderModal`) +
+  scoped stemme-dropdown i `/medlemmer`. **Self-service fjernet:** `updateMemberParts`
+  tillater ikke lenger `me.id === userId` — kun global `members.manage` eller
+  seksjonsleder; `/medlemmer` viser stemme skrivebeskyttet for andre. 13 enhetstester
+  for `file-access`. Aktiveres når branchen merges + deployes (etter at treet er
+  bygd, `archive.viewAll` bekreftet i prod og besetningen er varslet) +
+  prod-migrasjon `--remote`.
 
 **Rollback:** drop `section_leaders`, ignorer `parent_id` (NULL = ingen effekt),
 reverter `$fileId.ts` + serverfunksjons-filtre. Ingen destruktive steg.

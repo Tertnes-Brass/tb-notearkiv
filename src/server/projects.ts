@@ -25,7 +25,7 @@ export type ProjectWorkDetail = {
 export async function assembleRepertoire(
   d: Db,
   projectId: string,
-  opts: { effectivePartIds: string[]; includeScore: boolean },
+  opts: { effectivePartIds: string[]; includeScore: boolean; canViewAll: boolean },
 ): Promise<ProjectWorkDetail[]> {
   const rows = await d
     .select({
@@ -67,8 +67,10 @@ export async function assembleRepertoire(
 
   return rows.map((r) => {
     const wf = files.filter((f) => f.workId === r.workId)
+    // Hard tilgang: uten fullt arkivinnsyn ser et medlem kun egne stemmer i
+    // «alle stemmer»-listen (samme sett som fil-gaten slipper gjennom).
     const partFiles = wf
-      .filter((f) => f.kind === 'part')
+      .filter((f) => f.kind === 'part' && (opts.canViewAll || (!!f.partId && opts.effectivePartIds.includes(f.partId))))
       .map((f) => ({ id: f.id, partId: f.partId, partName: f.partName, partSort: f.partSort ?? 900, pageCount: f.pageCount }))
       .sort((a, b) => a.partSort - b.partSort)
     const score = wf.find((f) => f.kind === 'score')
@@ -103,6 +105,7 @@ export const getHome = createServerFn().handler(async () => {
     ? await assembleRepertoire(d, next.id, {
         effectivePartIds: me.effectivePartIds,
         includeScore: hasPermission(me, 'scores.view'),
+        canViewAll: hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll'),
       })
     : []
 
@@ -160,6 +163,7 @@ export const getProject = createServerFn()
     const repertoire = await assembleRepertoire(d, project.id, {
       effectivePartIds: me.effectivePartIds,
       includeScore: hasPermission(me, 'scores.view'),
+      canViewAll: hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll'),
     })
 
     return {

@@ -7,7 +7,7 @@ import { db } from '../db'
 import { invitations, memberProfiles, parts, roles, sectionLeaders, user, userParts } from '../db/schema'
 import { canManageMemberParts, hasPermission, requireMe, requirePermission } from './access'
 import { getAuth } from './auth-instance'
-import { buildChildrenMap } from './parts-tree'
+import { leaderCanAssign } from './parts-tree'
 
 /** Sjekker at rolle + stemmer faktisk finnes (partIds lagres uten FK i JSON). */
 async function assertValidRoleAndParts(roleId: string, partIds: string[]): Promise<void> {
@@ -71,6 +71,25 @@ export const listMembers = createServerFn().handler(async () => {
   const allParts = await d.select().from(parts).orderBy(asc(parts.sortOrder))
   const allRoles = await d.select().from(roles)
   const canManage = hasPermission(me, 'members.manage')
+  const canManageSection = hasPermission(me, 'members.manage.section')
+
+  // Seksjonsleder-bindinger (for «hvem kan jeg redigere» + admin-UI).
+  const leaderRows = await d.select().from(sectionLeaders)
+  const leadersByUser = new Map<string, string[]>()
+  for (const lr of leaderRows) {
+    const list = leadersByUser.get(lr.userId) ?? []
+    list.push(lr.partId)
+    leadersByUser.set(lr.userId, list)
+  }
+  const membersOut = members.map((m) => {
+    const memberPartIds = m.parts.map((p) => p.id)
+    return {
+      ...m,
+      // Global ⇒ alle; seksjonsleder ⇒ kun medlemmer helt innenfor eget omfang.
+      canEditParts: canManage || (canManageSection && leaderCanAssign(me.leadsPartIds, memberPartIds, memberPartIds)),
+      leaderPartIds: leadersByUser.get(m.id) ?? [],
+    }
+  })
 
   const pendingInvites = canManage
     ? await d
@@ -88,10 +107,13 @@ export const listMembers = createServerFn().handler(async () => {
     : []
 
   return {
-    members,
+    members: membersOut,
     allParts: allParts.filter((p) => p.section !== 'score'),
     allRoles,
     canManage,
+    canManageSection,
+    // null = full tilgang (alle stemmer); ellers begrenset til ledelsesomfanget.
+    assignablePartIds: canManage ? null : me.leadsPartIds,
     meId: me.id,
     invites: pendingInvites
       .filter((i) => !i.acceptedAt)
@@ -109,23 +131,12 @@ export const updateMemberParts = createServerFn({ method: 'POST' })
   .validator(z.object({ userId: z.string(), partIds: z.array(z.string()).max(4) }))
   .handler(async ({ data }) => {
     const me = await requireMe()
-    const d = db()
-
-    if (!hasPermission(me, 'members.manage')) {
-      if (me.id === data.userId) {
-        // Self-service stemmevalg: tillatt, men kan ikke gi seg selv en
-        // forelder-stemme (med understemmer) — det ville utvidet tilgang til
-        // hele subtreet. (No-op i dag: ingen forelder-stemmer finnes ennå.)
-        const partRows = await d.select({ id: parts.id, parentId: parts.parentId }).from(parts)
-        const childrenMap = buildChildrenMap(partRows)
-        if (data.partIds.some((id) => childrenMap.has(id))) {
-          throw new Error('Du kan ikke velge en seksjons-stemme med understemmer for deg selv')
-        }
-      } else if (!(await canManageMemberParts(me, data.userId, data.partIds))) {
-        throw new Error('Du kan bare endre stemmer for medlemmer i din egen seksjon')
-      }
+    // Hard tilgang: stemme = tilgang, derfor INGEN self-service. Bare global
+    // members.manage eller seksjonsleder (innenfor eget omfang) kan tildele.
+    if (!(await canManageMemberParts(me, data.userId, data.partIds))) {
+      throw new Error('Du har ikke tilgang til å endre stemmer for dette medlemmet')
     }
-
+    const d = db()
     await assertValidRoleAndParts(me.roleId, data.partIds) // gjenbruk: validerer partIds
     await d.delete(userParts).where(eq(userParts.userId, data.userId))
     if (data.partIds.length > 0) {

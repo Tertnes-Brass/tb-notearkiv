@@ -5,6 +5,7 @@ import { db } from '../../../db'
 import { downloadLog, projectWorks, shareLinks, workFiles } from '../../../db/schema'
 import { newId, sha256Hex } from '../../../lib/id'
 import { currentUser, hasPermission } from '../../../server/access'
+import { memberCanAccessFile, shareAllows } from '../../../server/file-access'
 
 function contentTypeFor(fileName: string): string {
   if (/\.pdf$/i.test(fileName)) return 'application/pdf'
@@ -35,15 +36,21 @@ export const Route = createFileRoute('/api/files/$fileId')({
         const me = await currentUser()
         if (me) {
           userId = me.id
-          // Medlemmer har full arkivtilgang (stemmer/lyd/uplassert) by design,
-          // men partitur er rettighetsstyrt (scores.view) — håndhev det server-side,
-          // ikke bare i UI-et, slik at «styrbart partitur» faktisk gjelder.
-          if (file.kind === 'score' && !hasPermission(me, 'scores.view')) {
-            return new Response('Ingen tilgang til partitur', { status: 403 })
-          }
+          // Hard tilgangsstyring: stemmefiler krever at stemma er i brukerens
+          // effektive stemmer (forelder ⇒ barn), partitur krever scores.view,
+          // uplassert krever fullt arkivinnsyn. works.manage er fail-safe så
+          // arkivforvaltere aldri låses ute. Håndheves server-side her — den
+          // ENESTE reelle porten — ikke bare i UI-et.
+          const ok = memberCanAccessFile(file, {
+            effectivePartIds: me.effectivePartIds,
+            canViewScore: hasPermission(me, 'scores.view'),
+            canViewAll: hasPermission(me, 'archive.viewAll') || hasPermission(me, 'works.manage'),
+          })
+          if (!ok) return new Response('Ingen tilgang til denne filen', { status: 403 })
         } else if (shareToken) {
           // Vikartilgang: token må være gyldig, og filen må tilhøre prosjektet
-          // og en av stemmene som er delt (lydfiler er alltid med).
+          // og en av de (snapshottede løv-)stemmene som er delt. Lyd alltid med;
+          // partitur/uplassert deles aldri. Aldri arkivinnsyn-bypass her.
           const tokenHash = await sha256Hex(shareToken)
           const share = (
             await d.select().from(shareLinks).where(eq(shareLinks.tokenHash, tokenHash)).limit(1)
@@ -58,11 +65,10 @@ export const Route = createFileRoute('/api/files/$fileId')({
               .where(and(eq(projectWorks.projectId, share.projectId), eq(projectWorks.workId, file.workId)))
               .limit(1)
           )[0]
-          const sharedPartIds = JSON.parse(share.partIds) as string[]
-          const allowed =
-            !!inProject &&
-            (file.kind === 'audio' || (file.kind === 'part' && !!file.partId && sharedPartIds.includes(file.partId)))
-          if (!allowed) return new Response('Ingen tilgang til denne filen', { status: 403 })
+          const sharedLeafIds = JSON.parse(share.partIds) as string[]
+          if (!inProject || !shareAllows(file, sharedLeafIds)) {
+            return new Response('Ingen tilgang til denne filen', { status: 403 })
+          }
           shareLinkId = share.id
         } else {
           return new Response('Krever innlogging', { status: 401 })
