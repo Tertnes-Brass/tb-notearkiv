@@ -54,3 +54,23 @@ export function expandPartIds(rawIds: string[], childrenMap: Map<string, string[
   }
   return [...out]
 }
+
+/**
+ * Kan en seksjonsleder med dette (allerede ekspanderte) omfanget administrere
+ * et medlems stemmer? Krever at BÅDE medlemmets nåværende stemmer OG de
+ * innsendte ligger HELT innenfor omfanget — da er en enkel full-overskriving
+ * trygg fordi lederen aldri rører stemmer utenfor egen seksjon. Stemmeløse
+ * medlemmer (ingen nåværende stemmer) håndteres kun av global `members.manage`.
+ *
+ * `leadsPartIds` forutsettes ekspandert (forelder ⇒ barn) av `expandPartIds`.
+ */
+export function leaderCanAssign(
+  leadsPartIds: string[],
+  currentPartIds: string[],
+  requestedPartIds: string[],
+): boolean {
+  const scope = new Set(leadsPartIds)
+  if (scope.size === 0) return false
+  if (currentPartIds.length === 0) return false
+  return currentPartIds.every((id) => scope.has(id)) && requestedPartIds.every((id) => scope.has(id))
+}

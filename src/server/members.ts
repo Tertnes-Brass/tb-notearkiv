@@ -4,9 +4,10 @@ import { asc, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { inArray } from 'drizzle-orm'
 import { db } from '../db'
-import { invitations, memberProfiles, parts, roles, user, userParts } from '../db/schema'
-import { hasPermission, requireMe, requirePermission } from './access'
+import { invitations, memberProfiles, parts, roles, sectionLeaders, user, userParts } from '../db/schema'
+import { canManageMemberParts, hasPermission, requireMe, requirePermission } from './access'
 import { getAuth } from './auth-instance'
+import { buildChildrenMap } from './parts-tree'
 
 /** Sjekker at rolle + stemmer faktisk finnes (partIds lagres uten FK i JSON). */
 async function assertValidRoleAndParts(roleId: string, partIds: string[]): Promise<void> {
@@ -108,16 +109,50 @@ export const updateMemberParts = createServerFn({ method: 'POST' })
   .validator(z.object({ userId: z.string(), partIds: z.array(z.string()).max(4) }))
   .handler(async ({ data }) => {
     const me = await requireMe()
-    if (me.id !== data.userId && !hasPermission(me, 'members.manage')) {
-      throw new Error('Du kan bare endre din egen stemme')
-    }
-    await assertValidRoleAndParts(me.roleId, data.partIds) // gjenbruk: validerer partIds
     const d = db()
+
+    if (!hasPermission(me, 'members.manage')) {
+      if (me.id === data.userId) {
+        // Self-service stemmevalg: tillatt, men kan ikke gi seg selv en
+        // forelder-stemme (med understemmer) — det ville utvidet tilgang til
+        // hele subtreet. (No-op i dag: ingen forelder-stemmer finnes ennå.)
+        const partRows = await d.select({ id: parts.id, parentId: parts.parentId }).from(parts)
+        const childrenMap = buildChildrenMap(partRows)
+        if (data.partIds.some((id) => childrenMap.has(id))) {
+          throw new Error('Du kan ikke velge en seksjons-stemme med understemmer for deg selv')
+        }
+      } else if (!(await canManageMemberParts(me, data.userId, data.partIds))) {
+        throw new Error('Du kan bare endre stemmer for medlemmer i din egen seksjon')
+      }
+    }
+
+    await assertValidRoleAndParts(me.roleId, data.partIds) // gjenbruk: validerer partIds
     await d.delete(userParts).where(eq(userParts.userId, data.userId))
     if (data.partIds.length > 0) {
       await d.insert(userParts).values(
         data.partIds.map((partId, i) => ({ userId: data.userId, partId, isPrimary: i === 0 })),
       )
+    }
+    return { ok: true }
+  })
+
+/**
+ * Setter hvilke stemmer/seksjoner en bruker er seksjonsleder for (full
+ * overskriving). KRITISK: gated på GLOBAL `members.manage` — ALDRI
+ * `members.manage.section`, ellers kunne en leder utvidet sitt eget omfang.
+ */
+export const setSectionLeaderParts = createServerFn({ method: 'POST' })
+  .validator(z.object({ userId: z.string(), partIds: z.array(z.string()) }))
+  .handler(async ({ data }) => {
+    await requirePermission('members.manage')
+    const d = db()
+    if (data.partIds.length > 0) {
+      const found = await d.select({ id: parts.id }).from(parts).where(inArray(parts.id, data.partIds))
+      if (found.length !== new Set(data.partIds).size) throw new Error('Ukjent stemme')
+    }
+    await d.delete(sectionLeaders).where(eq(sectionLeaders.userId, data.userId))
+    if (data.partIds.length > 0) {
+      await d.insert(sectionLeaders).values(data.partIds.map((partId) => ({ userId: data.userId, partId })))
     }
     return { ok: true }
   })

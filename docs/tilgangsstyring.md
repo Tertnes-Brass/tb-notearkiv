@@ -45,20 +45,38 @@ oppstartssjekk (fase 3) som fail-faster hvis privilegerte roller mangler
   Ren `expandPartIds`/`buildChildrenMap` med visited-set, `MAX_PART_DEPTH` og
   `'score'`-eksklusjon. Enhetstester (flat=identitet, forelder→barn, sykel,
   dybdekutt, score utenfor tre, tomt input). **Verifiserbar no-op.**
-- **Fase 1 — `Me` utvides (fortsatt ingen håndhevelse):** `effectivePartIds` +
-  `leadsPartIds` beregnes i `currentUser()`. Bytt dødt/kosmetisk `myPartIds` →
+- **Fase 1 — `Me` utvides (FERDIG, fortsatt ingen håndhevelse):** `effectivePartIds`
+  + `leadsPartIds` beregnes i `currentUser()`. Dødt `myPartIds` byttet til
   `effectivePartIds` i `getWork` og `assembleRepertoire`. Flatt tre ⇒ null
   atferdsendring.
-- **Fase 2 — Seksjonsleder-evne + scope (additiv):** `members.manage.section` +
-  `archive.viewAll` i `PERMISSION_CATALOG`. `canManageMemberParts` i `access.ts`.
-  Bytt gate i `updateMemberParts`. `section_leaders`-CRUD gated på **global**
-  `members.manage`. Idempotent rettighets-seed.
+- **Fase 2 — Seksjonsleder-evne + scope (FERDIG, additiv server-maskineri):**
+  `members.manage.section` + `archive.viewAll` i `PERMISSION_CATALOG`.
+  `canManageMemberParts` + ren `leaderCanAssign` (krever at både målets nåværende
+  OG innsendte stemmer ⊆ omfang ⇒ trygg full-overskriving). `updateMemberParts`
+  ny gate + self-edit avviser forelder-stemmer. `setSectionLeaderParts` gated på
+  **global** `members.manage`. `createPart`/`updatePart` tar `parentId` med
+  invarianter (`assertValidParent`: maks 2 nivåer, ingen sykel, aldri score);
+  `deletePart` avviser forelder med barn. `archive.viewAll` seedet til
+  archivist+conductor (fresh installs). UI (tre-visning, leder-binding) gjøres i
+  fase 4 sammen med gaten.
 - **Fase 3 — Forutsetnings-vakt:** oppstarts-/health-sjekk som fail-faster hvis
   `archivist`/`conductor` mangler `archive.viewAll` FØR gaten aktiveres. Bygg tre,
   sett `section_leaders`, varsle besetningen.
 - **Fase 4 — Hard fil-gate (eneste brukersynlige innstramming, separat deploy):**
   endre `$fileId.ts` (begge grener) + filtrer `getWork`/`assembleRepertoire`/
-  `getShareView` server-side. Snapshot share-scope i `createShare`.
+  `getShareView` server-side. Snapshot share-scope i `createShare`. UI: tre-visning
+  i `/innstillinger`, forelder-velger på stemmer, seksjonsleder-binding i `/medlemmer`.
+
+  > **MÅ håndteres i fase 4 (funn under fase 2):** i dag kan et medlem velge sin
+  > EGEN stemme (self-service i `/medlemmer`, `updateMemberParts` tillater
+  > `me.id === userId`). Under hard tilgang ville det la et medlem gi seg selv en
+  > vilkårlig blad-stemme og dermed lese den stemmens filer — en omgåelse av hele
+  > modellen. Fase 2 blokkerer self-valg av *forelder*-stemmer, men IKKE blad.
+  > Fase 4 må enten (a) fjerne self-service stemmevalg helt (kun ledelse/leder
+  > tildeler), eller (b) la self-service kun foreslå/«ønske» en stemme som en
+  > leder/admin bekrefter. Anbefalt: (a) — enklest og tett. Krever UI-endring i
+  > `/medlemmer` (skjul dropdown for ikke-privilegerte) + server-avvisning av
+  > self-edit i `updateMemberParts` når hard gate er på.
 
 **Rollback:** drop `section_leaders`, ignorer `parent_id` (NULL = ingen effekt),
 reverter `$fileId.ts` + serverfunksjons-filtre. Ingen destruktive steg.

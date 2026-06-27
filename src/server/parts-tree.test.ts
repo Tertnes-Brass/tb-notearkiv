@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type PartNode, buildChildrenMap, expandPartIds } from './parts-tree'
+import { type PartNode, buildChildrenMap, expandPartIds, leaderCanAssign } from './parts-tree'
 
 const sorted = (xs: string[]) => [...xs].sort()
 
@@ -90,6 +90,34 @@ describe('expandPartIds / buildChildrenMap', () => {
 
   it('tomt input → tomt output', () => {
     expect(expandPartIds([], new Map())).toEqual([])
+  })
+
+  describe('leaderCanAssign', () => {
+    const scope = ['percussion-1', 'percussion-2', 'percussion-3'] // ekspandert omfang
+
+    it('tillater når nåværende OG innsendte er innenfor omfanget', () => {
+      expect(leaderCanAssign(scope, ['percussion-1'], ['percussion-2', 'percussion-3'])).toBe(true)
+    })
+
+    it('avviser innsendt stemme utenfor omfanget (smugling i blandet liste)', () => {
+      expect(leaderCanAssign(scope, ['percussion-1'], ['percussion-1', 'solo-cornet'])).toBe(false)
+    })
+
+    it('avviser medlem som har en stemme utenfor omfanget (kapring)', () => {
+      expect(leaderCanAssign(scope, ['percussion-1', 'solo-cornet'], ['percussion-2'])).toBe(false)
+    })
+
+    it('avviser stemmeløst medlem (kun global members.manage)', () => {
+      expect(leaderCanAssign(scope, [], ['percussion-1'])).toBe(false)
+    })
+
+    it('avviser leder uten omfang', () => {
+      expect(leaderCanAssign([], ['percussion-1'], ['percussion-1'])).toBe(false)
+    })
+
+    it('tillater å tømme stemmer for medlem i egen seksjon', () => {
+      expect(leaderCanAssign(scope, ['percussion-1'], [])).toBe(true)
+    })
   })
 
   it('dupliserte input-ider (forelder + barn samtidig) dedupliseres', () => {
