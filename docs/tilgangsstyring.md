@@ -1,0 +1,136 @@
+# Nøstede stemmer + hard tilgangsstyring + seksjonsleder
+
+Designdokument for `feat/tilgangsstyring`. Utgangspunkt: testtilbakemelding om at
+slagverk blir et puslespill med mange stemmer, og ønsket om at en tildelt
+forelder-stemme («Slagverk») gir tilgang til alle understemmer, mens «Slagverk 1»
+kun gir den ene. Besluttet modell: **hard tilgangsstyring** (tildelt stemme styrer
+faktisk nedlasting), ikke bare filtrering.
+
+> **Grunnregel:** server-gaten `src/routes/api/files/$fileId.ts` er det ENESTE
+> reelle forsvaret. Alt annet (getWork, assembleRepertoire, getShareView, UI) er
+> kosmetikk og må aldri bli eneste skranke.
+
+## 1. Valgt modell
+
+- **Grunnstamme:** én nullable self-FK `parts.parent_id` + ekspansjon ved oppslag
+  i `currentUser()`. Ingen closure-tabell. `parent_id = NULL` på alle eksisterende
+  rader ⇒ ekspansjon = identitet = dagens flate oppførsel inntil noen aktivt
+  bygger et tre.
+- **Seksjonsleder:** ny scoped evne `members.manage.section` + scope-tabell
+  `section_leaders` + `canManageMemberParts(me, targetUserId, partIds)` med streng
+  `⊆`-validering (`.every()`) på HVER innsendt partId.
+- **Privilegerte roller:** ny rettighet `archive.viewAll` (seedes til `archivist`
+  + `conductor`; dekket av `*` for admin) bevarer full arkivinnsyn etter
+  innstrammingen.
+- **Én sannhetskilde for ekspansjon:** ren helper `expandPartIds(rawIds, childrenMap)`
+  (`src/server/parts-tree.ts`) brukt av effektive stemmer, ledelsesomfang OG
+  share-snapshot. Sykel-vern (visited-set) + hard dybdegrense.
+- **Share-scope snapshottes til løvnoder ved opprettelse** — vikar-grenen blir en
+  ren `includes` uten lesetids-ekspansjon, immun mot senere tre-endringer.
+- **Additiv datamodell:** én `ALTER` + én ny tabell. Ingen tabell-rebuild, ingen
+  eksisterende rad endres.
+
+Sentral invariant: **maks 2 nivåer** (forelder med `parent_id IS NULL`, blad med
+`parent_id` satt), håndhevet i app-laget (`createPart`/`updatePart`), ikke i DB.
+
+## 2. Faseinndelt rollout
+
+Faserekkefølgen er den sikkerhetskritiske delen. Fase 0–3 endrer **ingen
+brukersynlig oppførsel**. Innstrammingen kommer først i fase 4, gated bak en
+oppstartssjekk (fase 3) som fail-faster hvis privilegerte roller mangler
+`archive.viewAll`.
+
+- **Fase 0 — Skjema + ren helper (FERDIG i denne PR-en, bakoverkompatibelt):**
+  `parent_id` på `parts` (nullable) + `section_leaders`-tabell + migrasjon.
+  Ren `expandPartIds`/`buildChildrenMap` med visited-set, `MAX_PART_DEPTH` og
+  `'score'`-eksklusjon. Enhetstester (flat=identitet, forelder→barn, sykel,
+  dybdekutt, score utenfor tre, tomt input). **Verifiserbar no-op.**
+- **Fase 1 — `Me` utvides (fortsatt ingen håndhevelse):** `effectivePartIds` +
+  `leadsPartIds` beregnes i `currentUser()`. Bytt dødt/kosmetisk `myPartIds` →
+  `effectivePartIds` i `getWork` og `assembleRepertoire`. Flatt tre ⇒ null
+  atferdsendring.
+- **Fase 2 — Seksjonsleder-evne + scope (additiv):** `members.manage.section` +
+  `archive.viewAll` i `PERMISSION_CATALOG`. `canManageMemberParts` i `access.ts`.
+  Bytt gate i `updateMemberParts`. `section_leaders`-CRUD gated på **global**
+  `members.manage`. Idempotent rettighets-seed.
+- **Fase 3 — Forutsetnings-vakt:** oppstarts-/health-sjekk som fail-faster hvis
+  `archivist`/`conductor` mangler `archive.viewAll` FØR gaten aktiveres. Bygg tre,
+  sett `section_leaders`, varsle besetningen.
+- **Fase 4 — Hard fil-gate (eneste brukersynlige innstramming, separat deploy):**
+  endre `$fileId.ts` (begge grener) + filtrer `getWork`/`assembleRepertoire`/
+  `getShareView` server-side. Snapshot share-scope i `createShare`.
+
+**Rollback:** drop `section_leaders`, ignorer `parent_id` (NULL = ingen effekt),
+reverter `$fileId.ts` + serverfunksjons-filtre. Ingen destruktive steg.
+
+## 3. Fil-for-fil (fase 1–4)
+
+- `src/db/schema.ts` — ✅ `parts.parentId` + `sectionLeaders` (fase 0).
+- `src/server/parts-tree.ts` — ✅ `expandPartIds` / `buildChildrenMap` (fase 0).
+- `src/server/access.ts` — utvid `Me` med `effectivePartIds`/`leadsPartIds`
+  (én ekstra `select {id, parentId} from parts` i `Promise.all`); `canManageMemberParts`.
+- `src/server/settings.ts` — `members.manage.section` + `archive.viewAll` i
+  `PERMISSION_CATALOG`; `createPart`/`updatePart` tar `parentId` + validerer
+  invarianter (eksisterende forelder, maks 2 nivåer, ingen sykel, aldri `score`);
+  ny `section_leaders`-CRUD gated på **global** `members.manage`.
+- `src/server/members.ts` — `updateMemberParts` bruker `canManageMemberParts`;
+  self-edit avviser forelder-rader for ikke-`members.manage`; scoped ledere får
+  **delvis** overskriving (behold stemmer utenfor `leadsPartIds`); les mål-primær
+  fra DB, ikke fra innkommende data.
+- `src/routes/api/files/$fileId.ts` — **kind-først** if-kjede (score→scores.view,
+  part→effectivePartIds∨archive.viewAll, other→archive.viewAll, audio→åpen);
+  share-grenen ren `includes` mot snapshottet løvliste. Bevar
+  `if(me)/else if(shareToken)`-rekkefølgen; aldri `archive.viewAll` i share-grenen.
+- `src/server/works.ts` (`getWork`) / `src/server/projects.ts`
+  (`assembleRepertoire`) — filtrer part-filer **server-side** på `effectivePartIds`
+  når `!archive.viewAll`/`!works.manage`.
+- `src/server/shares.ts` — `createShare` validerer partIds mot `parts` og
+  snapshotter forelder→løv før lagring; felles `shareAllows(file, sharedLeafIds)`
+  importeres av både `$fileId.ts` og `getShareView`.
+- UI (`medlemmer`, `innstillinger`, `arkiv/$workId`, `Repertoire`) — tre-visning
+  med innrykk, parent-felt, rollematrise-kolonner, leder-binding; alt kosmetikk
+  som må byttes SAMTIDIG med gaten.
+
+## 4. Sikkerhetsfunn → lukking (utvalg fra adversarisk review)
+
+| Funn | Alvor | Lukking |
+|---|---|---|
+| Reparenting utvider eksisterende vikarlenke stille (scope-creep) | medium | Snapshot-til-løv i `createShare`; gate = ren `includes` |
+| Desync gate ↔ `getShareView` | medium | Felles `shareAllows()` importert av begge |
+| Dirigent/arkivar uten stemme låses ute | **høy** | `archive.viewAll` seedet + **fase 3 fail-fast** før gate; `works.manage` gir implisitt part/other-innsyn |
+| Custom privilegert rolle uten `archive.viewAll` | medium | Synlig/forklart i rollematrise; works.manage degraderer trygt |
+| Sykel i `parent_id` henger `currentUser()` → total utestenging | medium | Visited-set + `MAX_PART_DEPTH`; `createPart/updatePart` avviser sykel |
+| Metadata-lekk i `getWork`/`assembleRepertoire` | medium | Server-side filtrering, ikke bare UI |
+| Seksjonsleder binder seg selv i `section_leaders` (eskalering) | **kritisk** | `section_leaders`-skriving gated på **global** `members.manage`, aldri `.section` |
+| Leder kaprer medlem via ny-primær | **høy** | Mål-primær leses fra NÅVÆRENDE `user_parts` |
+| Leder sletter stemmer utenfor seksjon (full overskriving) | medium | Delvis overskriving innenfor `leadsPartIds` |
+| `other`/uplassert som åpen restkategori | medium | `other` krever `archive.viewAll` i gaten |
+| `'score'`-rad trekkes inn i tre | høy | Ekskludert i `buildChildrenMap` + kan ikke settes forelder/barn |
+| IDOR/eksistens-orakel (403 vs 404) | lav | Harmonisert respons + ingen metadata-lekk |
+
+## 5. Kanttilfeller (etter fase 4)
+
+| Aktør | score | part (egen) | part (andres) | audio | other |
+|---|---|---|---|---|---|
+| Medlem med stemme | Ja (scores.view) | Ja | **Nei** | Ja | **Nei** |
+| Medlem uten stemme | Ja (scores.view) | — | Nei | Ja | Nei |
+| Forelder-tildelt (`percussion`) | Ja | Ja for 1/2/3 | Nei | Ja | Nei |
+| Seksjonsleder | Ja* | Ja egne | Nei | Ja | Nei |
+| Dirigent/Arkivar (`archive.viewAll`) | Ja | Ja | **Ja** | Ja | **Ja** |
+| Arkivforvalter (`works.manage`) | Ja | Ja | Ja | Ja | Ja |
+| Admin (`*`) | Ja | Ja | Ja | Ja | Ja |
+| Vikar (share, fått `percussion-1`) | **Nei** | Ja for 1 | Nei | **Ja** | **Nei** |
+| Uinnlogget uten token | 401 | 401 | 401 | 401 | 401 |
+
+## 6. Åpne produktvalg — krever beslutning før fase 4
+
+1. **Omfang:** gate kun fil-nedlasting (medlem ser fortsatt verksliste +
+   metadata) — *anbefalt* — eller skjul også verk hen ikke har stemme i?
+2. **Medlem uten stemme:** ingen `part`-filer (*anbefalt*) vs. behold tilgang.
+3. **`audio` + `other`:** audio åpen + `other` bak `archive.viewAll` (*anbefalt*),
+   eller begge åpne / begge gated?
+4. **`scores.view` på member:** la stå (*anbefalt* — egen rolle-policy) vs. fjern nå.
+5. **Vikar + forelder-stemme:** snapshot-til-løv ved opprettelse (*anbefalt*) vs.
+   levende ekspansjon vs. skjul forelder fra delemodal.
+6. **Utrulling:** bygg tre + `archive.viewAll` + varsle FØRST, hard gate som
+   separat senere deploy (*anbefalt*); vurder feature-flag på gaten.
