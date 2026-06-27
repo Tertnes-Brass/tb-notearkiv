@@ -11,6 +11,7 @@ import {
   deleteWorkFile,
   deleteWorkLink,
   getWork,
+  rematchWorkFiles,
   setWorkFilePart,
 } from '../../server/works'
 
@@ -246,6 +247,7 @@ type WorkData = Awaited<ReturnType<typeof getWork>>
 
 function FilesSection({ data }: { data: WorkData }) {
   const router = useRouter()
+  const [rematching, setRematching] = useState(false)
   const sections = new Map<string, typeof data.files>()
   for (const f of data.files) {
     const key =
@@ -279,6 +281,31 @@ function FilesSection({ data }: { data: WorkData }) {
             <div className="mb-2 flex items-baseline gap-3">
               <h2 className={`kicker ${key === 'other' ? '!text-oxblood' : ''}`}>{labels[key]}</h2>
               <div className="staff-rule h-[10px] flex-1 opacity-30" aria-hidden />
+              {key === 'other' && data.canManage && (
+                <button
+                  disabled={rematching}
+                  onClick={async () => {
+                    setRematching(true)
+                    try {
+                      const res = await rematchWorkFiles({ data: { workId: data.work.id } })
+                      toast(
+                        res.matched > 0
+                          ? `${res.matched} av ${res.total} ${res.total === 1 ? 'fil' : 'filer'} plassert`
+                          : 'Fant ingen treff — legg til alias under Innstillinger',
+                        res.matched > 0 ? 'ok' : 'error',
+                      )
+                      router.invalidate()
+                    } catch (err) {
+                      toastError(err)
+                    } finally {
+                      setRematching(false)
+                    }
+                  }}
+                  className="shrink-0 cursor-pointer font-mono text-[0.64rem] uppercase tracking-wide text-ink-faint transition-colors hover:text-brass-strong disabled:opacity-50"
+                >
+                  {rematching ? 'Gjenkjenner …' : 'Gjenkjenn på nytt'}
+                </button>
+              )}
             </div>
             <ul className="sheet divide-y divide-[var(--line)] overflow-hidden">
               {sections.get(key)!.map((f) => (

@@ -40,9 +40,9 @@ export const BRASS_BAND_PARTS: PartDef[] = [
   { id: 'euphonium', sortOrder: 150, nameNo: 'Eufonium', nameEn: 'Euphonium', aliases: ['euphonium', 'eufonium', 'euph'], section: 'low' },
   { id: 'eb-bass', sortOrder: 160, nameNo: 'Eb-bass', nameEn: 'Eb Bass', aliases: ['eb bass', 'es bass', 'eb tuba', 'e bass'], section: 'low' },
   { id: 'bb-bass', sortOrder: 170, nameNo: 'Bb-bass', nameEn: 'Bb Bass', aliases: ['bb bass', 'b bass', 'bb tuba'], section: 'low' },
-  { id: 'percussion-1', sortOrder: 180, nameNo: 'Slagverk 1', nameEn: 'Percussion 1', aliases: ['percussion 1', 'perc 1', 'slagverk 1', 'drum set', 'drumset', 'kit'], section: 'perc' },
-  { id: 'percussion-2', sortOrder: 190, nameNo: 'Slagverk 2', nameEn: 'Percussion 2', aliases: ['percussion 2', 'perc 2', 'slagverk 2', 'mallets', 'glockenspiel', 'xylophone'], section: 'perc' },
-  { id: 'percussion-3', sortOrder: 200, nameNo: 'Slagverk 3', nameEn: 'Percussion 3', aliases: ['percussion 3', 'perc 3', 'slagverk 3', 'timpani', 'pauker'], section: 'perc' },
+  { id: 'percussion-1', sortOrder: 180, nameNo: 'Slagverk 1', nameEn: 'Percussion 1', aliases: ['percussion 1', 'perc 1', 'slagverk 1', 'drum set', 'drumset', 'kit', 'snare', 'snare drum', 'skarptromme'], section: 'perc' },
+  { id: 'percussion-2', sortOrder: 190, nameNo: 'Slagverk 2', nameEn: 'Percussion 2', aliases: ['percussion 2', 'perc 2', 'slagverk 2', 'mallets', 'glockenspiel', 'xylophone', 'xylofon', 'klokkespill'], section: 'perc' },
+  { id: 'percussion-3', sortOrder: 200, nameNo: 'Slagverk 3', nameEn: 'Percussion 3', aliases: ['percussion 3', 'perc 3', 'slagverk 3', 'timpani', 'pauker', 'cymbals', 'cymbaler', 'triangle', 'triangel'], section: 'perc' },
   { id: 'score', sortOrder: 210, nameNo: 'Partitur', nameEn: 'Full Score', aliases: ['full score', 'score', 'partitur', 'conductor'], section: 'score' },
 ]
 
@@ -55,23 +55,44 @@ function normalize(s: string): string {
     .trim()
 }
 
+// «1st», «first», «1.» → «1». Slik koker «2nd cornet», «cornet 2» og
+// «2. kornett» ned til samme token-sett.
+const ORDINALS: Record<string, string> = {
+  first: '1', '1st': '1',
+  second: '2', '2nd': '2',
+  third: '3', '3rd': '3',
+  fourth: '4', '4th': '4',
+}
+
+function tokenize(s: string): string[] {
+  return normalize(s)
+    .split(' ')
+    .filter(Boolean)
+    .map((t) => ORDINALS[t] ?? t)
+}
+
 /**
- * Gjetter stemme fra et filnavn. Lengste alias-treff vinner, slik at
- * «solo cornet» slår «cornet» og «2nd cornet» slår «cornet 2»-varianter.
+ * Gjetter stemme fra et filnavn. Token-basert: et alias treffer når *alle* ordene
+ * i aliaset finnes i filnavnet — uavhengig av rekkefølge og av «fyllord» imellom.
+ * Slik treffer «1st Bb Baritone» aliaset «1st baritone» selv om tonarten «Bb»
+ * står i veien, mens «Eb-bass»/«Bb-bass» fortsatt skilles fordi tonart-ordet da
+ * er en del av selve aliaset. Mest spesifikke treff (flest ord) vinner.
  */
 export function guessPartFromFilename(
   fileName: string,
   defs: Array<{ id: string; aliases: string[] | string; nameNo?: string; nameEn?: string }>,
 ): string | null {
-  const hay = ` ${normalize(fileName)} `
-  let best: { id: string; len: number } | null = null
+  const hay = new Set(tokenize(fileName))
+  let best: { id: string; tokens: number; len: number } | null = null
   for (const def of defs) {
     const aliasList = typeof def.aliases === 'string' ? (JSON.parse(def.aliases) as string[]) : def.aliases
     const candidates = [...aliasList, def.nameNo ?? '', def.nameEn ?? ''].filter(Boolean)
     for (const alias of candidates) {
-      const needle = ` ${normalize(alias)} `
-      if (needle.trim() && hay.includes(needle) && (!best || needle.length > best.len)) {
-        best = { id: def.id, len: needle.length }
+      const tokens = tokenize(alias)
+      if (tokens.length === 0 || !tokens.every((t) => hay.has(t))) continue
+      const len = tokens.join(' ').length
+      if (!best || tokens.length > best.tokens || (tokens.length === best.tokens && len > best.len)) {
+        best = { id: def.id, tokens: tokens.length, len }
       }
     }
   }

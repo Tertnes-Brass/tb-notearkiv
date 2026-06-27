@@ -1,10 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { env } from 'cloudflare:workers'
-import { asc, desc, eq, like, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, like, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { parts, projectWorks, projects, workFiles, workLinks, works } from '../db/schema'
 import { newId } from '../lib/id'
+import { guessPartFromFilename } from '../lib/taxonomy'
 import { hasPermission, requireMe, requirePermission } from './access'
 
 export const listWorks = createServerFn()
@@ -197,6 +198,32 @@ export const setWorkFilePart = createServerFn({ method: 'POST' })
     const kind = data.partId == null ? 'other' : data.partId === 'score' ? 'score' : 'part'
     await d.update(workFiles).set({ partId: data.partId, kind }).where(eq(workFiles.id, data.fileId))
     return { ok: true }
+  })
+
+/**
+ * Kjører navnegjenkjenningen på nytt over filene som ligger «uplassert»
+ * (kind = 'other'). Nyttig når besetning/aliaser er endret etter opplasting.
+ */
+export const rematchWorkFiles = createServerFn({ method: 'POST' })
+  .validator(z.object({ workId: z.string() }))
+  .handler(async ({ data }) => {
+    await requirePermission('works.manage')
+    const d = db()
+    const partDefs = await d.select().from(parts).orderBy(asc(parts.sortOrder))
+    const unplaced = await d
+      .select({ id: workFiles.id, fileName: workFiles.fileName })
+      .from(workFiles)
+      .where(and(eq(workFiles.workId, data.workId), eq(workFiles.kind, 'other')))
+
+    let matched = 0
+    for (const f of unplaced) {
+      const guessed = guessPartFromFilename(f.fileName, partDefs)
+      if (!guessed) continue
+      const kind = guessed === 'score' ? 'score' : 'part'
+      await d.update(workFiles).set({ partId: guessed, kind }).where(eq(workFiles.id, f.id))
+      matched++
+    }
+    return { matched, total: unplaced.length }
   })
 
 export const addWorkLink = createServerFn({ method: 'POST' })
