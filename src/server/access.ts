@@ -2,8 +2,9 @@ import { eq } from 'drizzle-orm'
 import { redirect } from '@tanstack/react-router'
 import { getRequest } from '@tanstack/react-start/server'
 import { db } from '../db'
-import { memberProfiles, parts, rolePermissions, roles, userParts } from '../db/schema'
+import { memberProfiles, parts, rolePermissions, roles, sectionLeaders, userParts } from '../db/schema'
 import { getAuth } from './auth-instance'
+import { buildChildrenMap, expandPartIds } from './parts-tree'
 
 export type Me = {
   id: string
@@ -13,6 +14,12 @@ export type Me = {
   roleName: string
   permissions: string[]
   parts: Array<{ id: string; nameNo: string; nameEn: string; section: string }>
+  // Tildelte stemmer ekspandert nedover treet (forelder ⇒ alle barn). Brukes
+  // til tilgang/«mine noter». Lik parts.map(id) så lenge treet er flatt.
+  effectivePartIds: string[]
+  // Stemmer denne brukeren er seksjonsleder for, ekspandert nedover. Tomt for
+  // de fleste. Scope for `members.manage.section`.
+  leadsPartIds: string[]
 }
 
 export async function currentUser(): Promise<Me | null> {
@@ -37,7 +44,7 @@ export async function currentUser(): Promise<Me | null> {
   const profile = rows[0]
   if (!profile || !profile.isActive) return null
 
-  const [perms, myParts] = await Promise.all([
+  const [perms, myParts, allPartRows, leaderRows] = await Promise.all([
     d
       .select({ permission: rolePermissions.permission })
       .from(rolePermissions)
@@ -47,7 +54,11 @@ export async function currentUser(): Promise<Me | null> {
       .from(userParts)
       .innerJoin(parts, eq(userParts.partId, parts.id))
       .where(eq(userParts.userId, authUserId)),
+    d.select({ id: parts.id, parentId: parts.parentId }).from(parts),
+    d.select({ partId: sectionLeaders.partId }).from(sectionLeaders).where(eq(sectionLeaders.userId, authUserId)),
   ])
+
+  const childrenMap = buildChildrenMap(allPartRows)
 
   return {
     id: authUserId,
@@ -57,6 +68,8 @@ export async function currentUser(): Promise<Me | null> {
     roleName: profile.roleName,
     permissions: perms.map((p) => p.permission),
     parts: myParts,
+    effectivePartIds: expandPartIds(myParts.map((p) => p.id), childrenMap),
+    leadsPartIds: expandPartIds(leaderRows.map((r) => r.partId), childrenMap),
   }
 }
 

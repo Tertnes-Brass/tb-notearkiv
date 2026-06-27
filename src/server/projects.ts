@@ -25,7 +25,7 @@ export type ProjectWorkDetail = {
 export async function assembleRepertoire(
   d: Db,
   projectId: string,
-  opts: { myPartIds: string[]; includeScore: boolean },
+  opts: { effectivePartIds: string[]; includeScore: boolean },
 ): Promise<ProjectWorkDetail[]> {
   const rows = await d
     .select({
@@ -77,7 +77,7 @@ export async function assembleRepertoire(
       links: links.filter((l) => l.workId === r.workId).map((l) => ({ id: l.id, kind: l.kind, url: l.url, label: l.label })),
       partFiles,
       myFiles: wf
-        .filter((f) => f.kind === 'part' && f.partId && opts.myPartIds.includes(f.partId))
+        .filter((f) => f.kind === 'part' && f.partId && opts.effectivePartIds.includes(f.partId))
         .map((f) => ({ id: f.id, partName: f.partName, pageCount: f.pageCount })),
       scoreFileId: opts.includeScore && score ? score.id : null,
       audioFiles: wf
@@ -101,7 +101,7 @@ export const getHome = createServerFn().handler(async () => {
   const next = upcoming[0] ?? null
   const repertoire = next
     ? await assembleRepertoire(d, next.id, {
-        myPartIds: me.parts.map((p) => p.id),
+        effectivePartIds: me.effectivePartIds,
         includeScore: hasPermission(me, 'scores.view'),
       })
     : []
@@ -158,7 +158,7 @@ export const getProject = createServerFn()
     if (!project.isPublished && !canManage) throw new Error('Prosjektet er ikke publisert ennå')
 
     const repertoire = await assembleRepertoire(d, project.id, {
-      myPartIds: me.parts.map((p) => p.id),
+      effectivePartIds: me.effectivePartIds,
       includeScore: hasPermission(me, 'scores.view'),
     })
 

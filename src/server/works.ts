@@ -98,7 +98,7 @@ export const getWork = createServerFn()
       usedIn,
       canManage: hasPermission(me, 'works.manage'),
       canViewScore: hasPermission(me, 'scores.view'),
-      myPartIds: me.parts.map((p) => p.id),
+      effectivePartIds: me.effectivePartIds,
     }
   })
 
