@@ -30,7 +30,7 @@ function HomePage() {
                 params={{ projectId: next.id }}
                 className="link-quiet block"
               >
-                <h1 className="display-title text-[clamp(2.6rem,7vw,4.6rem)] font-semibold italic leading-[0.98] text-ink transition-colors hover:text-brass-strong">
+                <h1 className="display-title text-[clamp(2.6rem,7vw,4.6rem)] font-semibold italic leading-[0.98] text-ink transition-colors hover:text-brass-strong break-words [hyphens:auto]">
                   {next.name}
                 </h1>
               </Link>

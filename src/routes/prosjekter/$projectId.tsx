@@ -70,7 +70,7 @@ function ProjectPage() {
               </Kicker>
               {!p.isPublished && <Stamp tone="oxblood">Utkast — kun synlig for stab</Stamp>}
             </div>
-            <h1 className="display-title mt-2 text-[clamp(2.4rem,6vw,4rem)] font-semibold italic leading-[1] text-ink">
+            <h1 className="display-title mt-2 break-words [hyphens:auto] text-[clamp(2.4rem,6vw,4rem)] font-semibold italic leading-[1] text-ink">
               {p.name}
             </h1>
             {p.description && (

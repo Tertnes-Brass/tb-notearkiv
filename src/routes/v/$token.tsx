@@ -74,7 +74,7 @@ function ShareViewPage() {
           {p.kind === 'konsert' ? 'Konsert' : p.kind}
           {p.eventDate ? ` · ${relativeDays(p.eventDate)}` : ''}
         </Kicker>
-        <h1 className="display-title mt-2 text-[clamp(2.6rem,8vw,4.2rem)] font-semibold italic leading-[1] text-ink">
+        <h1 className="display-title mt-2 break-words [hyphens:auto] text-[clamp(2.6rem,8vw,4.2rem)] font-semibold italic leading-[1] text-ink">
           {p.name}
         </h1>
         <p className="mt-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-ink-soft">
