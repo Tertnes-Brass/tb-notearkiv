@@ -123,17 +123,17 @@ export function WorkFormModal({
         <Field label="Tittel *">
           <input className="field-input" value={form.title} onChange={set('title')} placeholder="F.eks. «Where Eagles Sing»" autoFocus />
         </Field>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Komponist">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <Field label="Komponist" className="col-span-2 sm:col-span-1">
             <input className="field-input" value={form.composer} onChange={set('composer')} placeholder="Paul Lovatt-Cooper" />
           </Field>
-          <Field label="Arrangør">
+          <Field label="Arrangør" className="col-span-2 sm:col-span-1">
             <input className="field-input" value={form.arranger} onChange={set('arranger')} placeholder="" />
           </Field>
-          <Field label="Forlag">
+          <Field label="Forlag" className="col-span-2 sm:col-span-1">
             <input className="field-input" value={form.publisher} onChange={set('publisher')} />
           </Field>
-          <Field label="Sjanger">
+          <Field label="Sjanger" className="col-span-2 sm:col-span-1">
             <input className="field-input" value={form.genre} onChange={set('genre')} placeholder="Konsertåpner, hymne, marsj …" />
           </Field>
           <Field label="Vanskelighetsgrad">
@@ -149,21 +149,21 @@ export function WorkFormModal({
           <Field label="Varighet" hint="minutter:sekunder">
             <input className="field-input" value={form.duration} onChange={set('duration')} placeholder="4:30" />
           </Field>
-          <Field label="Fysisk plassering">
+          <Field label="Fysisk plassering" className="col-span-2 sm:col-span-1">
             <input className="field-input" value={form.physicalLocation} onChange={set('physicalLocation')} placeholder="Skap 2 · Mappe 014" />
           </Field>
-          <Field label="Anskaffet år">
-            <input className="field-input" value={form.acquiredYear} onChange={set('acquiredYear')} placeholder="2024" inputMode="numeric" />
+          <Field label="Anskaffet år" className="col-span-2 sm:col-span-1">
+            <input className="field-input" value={form.acquiredYear} onChange={set('acquiredYear')} placeholder="2024" inputMode="numeric" enterKeyHint="done" autoComplete="off" />
           </Field>
         </div>
         <Field label="Notater">
           <textarea className="field-input min-h-20 resize-y" value={form.notes} onChange={set('notes')} placeholder="Interne merknader — mangler, kopier, solister …" />
         </Field>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" onClick={onClose} className="w-full sm:w-auto">
             Avbryt
           </Button>
-          <Button type="submit" variant="primary" loading={saving}>
+          <Button type="submit" variant="primary" loading={saving} className="w-full sm:w-auto">
             {work ? 'Lagre endringer' : 'Opprett verk'}
           </Button>
         </div>

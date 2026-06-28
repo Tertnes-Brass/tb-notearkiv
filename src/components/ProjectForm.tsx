@@ -74,7 +74,7 @@ export function ProjectFormModal({
         <Field label="Navn *">
           <input className="field-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Julekonsert, NM Brass …" autoFocus />
         </Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Type">
             <select className="field-input" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
               {KINDS.map((k) => (
@@ -94,11 +94,11 @@ export function ProjectFormModal({
         <Field label="Beskrivelse" hint="Vises til musikerne — oppmøte, antrekk, praktisk info">
           <textarea className="field-input min-h-20 resize-y" value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" onClick={onClose} className="w-full sm:w-auto">
             Avbryt
           </Button>
-          <Button type="submit" variant="primary" loading={saving}>
+          <Button type="submit" variant="primary" loading={saving} className="w-full sm:w-auto">
             {project ? 'Lagre endringer' : 'Opprett prosjekt'}
           </Button>
         </div>

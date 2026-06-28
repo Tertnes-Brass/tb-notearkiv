@@ -97,6 +97,10 @@ function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="deg@example.com"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="go"
                   autoFocus
                 />
               </Field>

@@ -216,7 +216,7 @@ function ManageRowButtons({
   }
 
   const btn =
-    'grid h-7 w-7 cursor-pointer place-items-center rounded-md text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-30 disabled:pointer-events-none'
+    'grid h-9 w-9 sm:h-8 sm:w-8 cursor-pointer place-items-center rounded-md text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-30 disabled:pointer-events-none'
 
   return (
     <>
@@ -237,7 +237,7 @@ function ManageRowButtons({
         <Arrow dir="down" />
       </button>
       <button
-        className={`${btn} hover:!bg-danger/10 hover:!text-danger`}
+        className={`${btn} ml-1 hover:!bg-danger/10 hover:!text-danger`}
         disabled={busy}
         aria-label="Fjern fra programmet"
         onClick={() => act(() => removeWorkFromProject({ data: { projectId, workId } }))}
@@ -295,6 +295,10 @@ function WorkPicker({ projectId, open, onClose }: { projectId: string; open: boo
         placeholder="Søk i arkivet …"
         value={q}
         onChange={(e) => setQ(e.target.value)}
+        enterKeyHint="search"
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
         autoFocus
       />
       <div className="max-h-72 space-y-1 overflow-y-auto">
@@ -403,8 +407,8 @@ function SharesSection({
           {shares.map((s) => {
             const dead = !!s.revokedAt || s.expiresAt < now
             return (
-              <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5 py-3.5">
-                <span className="min-w-0 flex-1">
+              <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3.5 sm:px-5">
+                <span className="min-w-0 flex-1 basis-full sm:basis-auto">
                   <span className={`block text-[0.92rem] font-semibold ${dead ? 'text-ink-faint line-through' : 'text-ink'}`}>
                     {s.recipientName}
                   </span>
@@ -412,30 +416,32 @@ function SharesSection({
                     {s.partNames.join(' · ')}
                   </span>
                 </span>
-                <span className="font-mono text-[0.64rem] uppercase tracking-[0.1em] text-ink-faint">
-                  {s.revokedAt
-                    ? 'Trukket tilbake'
-                    : s.expiresAt < now
-                      ? 'Utløpt'
-                      : `Utløper ${new Date(s.expiresAt).toLocaleDateString('nb-NO')}`}
-                  {s.lastUsedAt ? ` · sist åpnet ${new Date(s.lastUsedAt).toLocaleDateString('nb-NO')}` : ' · ikke åpnet'}
-                </span>
-                {!dead && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await revokeShare({ data: { shareId: s.id } })
-                        toast('Lenken er trukket tilbake')
-                        refresh()
-                      } catch (err) {
-                        toastError(err)
-                      }
-                    }}
-                    className="cursor-pointer font-mono text-[0.64rem] uppercase tracking-wide text-danger/80 hover:text-danger"
-                  >
-                    Trekk tilbake
-                  </button>
-                )}
+                <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+                  <span className="font-mono text-[0.64rem] uppercase tracking-[0.1em] text-ink-faint">
+                    {s.revokedAt
+                      ? 'Trukket tilbake'
+                      : s.expiresAt < now
+                        ? 'Utløpt'
+                        : `Utløper ${new Date(s.expiresAt).toLocaleDateString('nb-NO')}`}
+                    {s.lastUsedAt ? ` · sist åpnet ${new Date(s.lastUsedAt).toLocaleDateString('nb-NO')}` : ' · ikke åpnet'}
+                  </span>
+                  {!dead && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await revokeShare({ data: { shareId: s.id } })
+                          toast('Lenken er trukket tilbake')
+                          refresh()
+                        } catch (err) {
+                          toastError(err)
+                        }
+                      }}
+                      className="-mx-2 -my-1.5 inline-flex shrink-0 items-center px-3 py-2.5 font-mono text-[0.64rem] uppercase tracking-wide text-danger/80 transition-colors hover:text-danger"
+                    >
+                      Trekk tilbake
+                    </button>
+                  )}
+                </div>
               </li>
             )
           })}
@@ -581,11 +587,11 @@ function CreateShareModal({
               <option value="60">60 dager</option>
             </select>
           </Field>
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" onClick={onClose}>
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+            <Button variant="ghost" onClick={onClose} className="w-full sm:w-auto">
               Avbryt
             </Button>
-            <Button variant="primary" onClick={submit} loading={saving}>
+            <Button variant="primary" onClick={submit} loading={saving} className="w-full sm:w-auto">
               Lag lenke
             </Button>
           </div>

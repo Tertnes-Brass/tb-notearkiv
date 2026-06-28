@@ -10,7 +10,7 @@ function FileChip({ fileId, label, accent }: { fileId: string; label: string; ac
       href={`/api/files/${fileId}`}
       target="_blank"
       rel="noreferrer"
-      className={`group/chip inline-flex cursor-pointer items-center gap-1.5 rounded-[7px] border px-2.5 py-1.5 font-mono text-[0.68rem] uppercase tracking-[0.07em] transition-all duration-150 hover:-translate-y-px ${
+      className={`group/chip inline-flex cursor-pointer items-center gap-1.5 rounded-[7px] border px-2.5 py-2.5 font-mono text-[0.68rem] uppercase tracking-[0.07em] transition-all duration-150 can-hover:hover:-translate-y-px active:translate-y-0 ${
         accent
           ? 'border-brass/50 bg-[var(--brass-soft)] text-brass-strong hover:border-brass'
           : 'border-line-strong text-ink-soft hover:border-brass/60 hover:text-brass-strong'
@@ -27,7 +27,7 @@ function FileChip({ fileId, label, accent }: { fileId: string; label: string; ac
         viewBox="0 0 10 10"
         fill="none"
         aria-hidden
-        className="opacity-0 transition-opacity duration-150 group-hover/chip:opacity-70"
+        className="opacity-60 transition-opacity duration-150 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/chip:opacity-70"
       >
         <path d="M2 8L8 2M3.5 2H8v4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -50,7 +50,7 @@ function ListenButton({ item }: { item: ProjectWorkDetail }) {
         href={external[0]!.url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-[7px] border border-line-strong px-2.5 py-1.5 font-mono text-[0.68rem] uppercase tracking-[0.07em] text-ink-soft transition-all duration-150 hover:-translate-y-px hover:border-oxblood/60 hover:text-oxblood"
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-[7px] border border-line-strong px-2.5 py-2.5 font-mono text-[0.68rem] uppercase tracking-[0.07em] text-ink-soft transition-all duration-150 can-hover:hover:-translate-y-px active:translate-y-0 hover:border-oxblood/60 hover:text-oxblood"
       >
         <PlayIcon /> Lytt
       </a>
@@ -61,7 +61,7 @@ function ListenButton({ item }: { item: ProjectWorkDetail }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-[7px] border border-line-strong px-2.5 py-1.5 font-mono text-[0.68rem] uppercase tracking-[0.07em] text-ink-soft transition-all duration-150 hover:-translate-y-px hover:border-oxblood/60 hover:text-oxblood"
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-[7px] border border-line-strong px-2.5 py-2.5 font-mono text-[0.68rem] uppercase tracking-[0.07em] text-ink-soft transition-all duration-150 can-hover:hover:-translate-y-px active:translate-y-0 hover:border-oxblood/60 hover:text-oxblood"
       >
         <PlayIcon /> Lytt
       </button>
@@ -162,7 +162,7 @@ export function RepertoireRow({
           )}
         </div>
       </div>
-      {manage && <div className="flex shrink-0 items-start gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/row:opacity-100">{manage}</div>}
+      {manage && <div className="flex shrink-0 items-start gap-1.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/row:opacity-100">{manage}</div>}
     </li>
   )
 }

@@ -41,7 +41,7 @@ function WorkPage() {
         <Link to="/arkiv" className="link-quiet mb-4 inline-flex items-center gap-1.5 font-mono text-[0.66rem] uppercase tracking-[0.16em] text-ink-faint transition-colors hover:text-brass-strong">
           ← Arkivet
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h1 className="display-title text-4xl font-semibold italic leading-tight text-ink sm:text-5xl">
               {w.title}
@@ -331,7 +331,7 @@ function FileRow({
   const name = file.kind === 'score' ? 'Partitur' : file.kind === 'audio' ? (file.label ?? 'Lydfil') : (file.partName ?? 'Uplassert')
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5">
+    <li className="flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-x-4 sm:px-5">
       <span className="min-w-0 flex-1">
         <span className={`block text-[0.92rem] font-semibold ${file.kind === 'other' ? 'text-oxblood' : 'text-ink'}`}>
           {name}
@@ -342,56 +342,17 @@ function FileRow({
         </span>
       </span>
 
-      {data.canManage && file.kind !== 'audio' && (
-        <select
-          className="field-input !w-auto !py-1.5 !text-xs"
-          value={file.partId ?? ''}
-          disabled={busy}
-          onChange={async (e) => {
-            setBusy(true)
-            try {
-              await setWorkFilePart({ data: { fileId: file.id, partId: e.target.value || null } })
-              toast('Stemme oppdatert')
-              onChanged()
-            } catch (err) {
-              toastError(err)
-            } finally {
-              setBusy(false)
-            }
-          }}
-        >
-          <option value="">Velg stemme …</option>
-          {data.allParts.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nameNo}
-            </option>
-          ))}
-        </select>
-      )}
-
-      <span className="flex shrink-0 items-center gap-1">
-        <a
-          href={`/api/files/${file.id}`}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
-        >
-          Åpne
-        </a>
-        <a
-          href={`/api/files/${file.id}?download=1`}
-          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
-        >
-          Last ned
-        </a>
-        {data.canManage && (
-          <button
+      <div className="flex w-full items-center justify-between gap-2 sm:contents">
+        {data.canManage && file.kind !== 'audio' && (
+          <select
+            className="field-input min-w-0 flex-1 !py-2 !text-base sm:!w-auto sm:!flex-none sm:!py-1.5 sm:!text-xs"
+            value={file.partId ?? ''}
             disabled={busy}
-            onClick={async () => {
+            onChange={async (e) => {
               setBusy(true)
               try {
-                await deleteWorkFile({ data: { fileId: file.id } })
-                toast('Filen er slettet')
+                await setWorkFilePart({ data: { fileId: file.id, partId: e.target.value || null } })
+                toast('Stemme oppdatert')
                 onChanged()
               } catch (err) {
                 toastError(err)
@@ -399,12 +360,53 @@ function FileRow({
                 setBusy(false)
               }
             }}
-            className="cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-medium text-danger/80 transition-colors hover:bg-danger/10 hover:text-danger"
           >
-            Slett
-          </button>
+            <option value="">Velg stemme …</option>
+            {data.allParts.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nameNo}
+              </option>
+            ))}
+          </select>
         )}
-      </span>
+
+        <span className="flex shrink-0 items-center gap-1.5">
+          <a
+            href={`/api/files/${file.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center rounded-lg px-2.5 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
+          >
+            Åpne
+          </a>
+          <a
+            href={`/api/files/${file.id}?download=1`}
+            className="inline-flex items-center rounded-lg px-2.5 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
+          >
+            Last ned
+          </a>
+          {data.canManage && (
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  await deleteWorkFile({ data: { fileId: file.id } })
+                  toast('Filen er slettet')
+                  onChanged()
+                } catch (err) {
+                  toastError(err)
+                } finally {
+                  setBusy(false)
+                }
+              }}
+              className="ml-1 inline-flex items-center rounded-lg px-2.5 py-2 text-xs font-medium text-danger/80 transition-colors hover:bg-danger/10 hover:text-danger"
+            >
+              Slett
+            </button>
+          )}
+        </span>
+      </div>
     </li>
   )
 }
@@ -444,7 +446,7 @@ function LinksSection({ data }: { data: WorkData }) {
                       toastError(err)
                     }
                   }}
-                  className="cursor-pointer font-mono text-[0.64rem] uppercase tracking-wide text-ink-faint hover:text-danger"
+                  className="-mx-2 -my-1.5 inline-flex items-center px-3 py-2.5 font-mono text-[0.64rem] uppercase tracking-wide text-ink-faint transition-colors hover:text-danger"
                 >
                   fjern
                 </button>

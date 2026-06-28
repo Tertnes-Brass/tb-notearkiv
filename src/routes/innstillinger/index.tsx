@@ -91,7 +91,7 @@ function PartsSection({ data }: { data: Data }) {
             >
               <span className="flex shrink-0 flex-col">
                 <button
-                  className="grid h-5 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none"
+                  className="grid h-8 w-8 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none sm:h-5 sm:w-6"
                   disabled={busy === p.id || i === 0}
                   aria-label="Flytt opp"
                   onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'up' } }))}
@@ -99,7 +99,7 @@ function PartsSection({ data }: { data: Data }) {
                   <Chevron dir="up" />
                 </button>
                 <button
-                  className="grid h-5 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none"
+                  className="grid h-8 w-8 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none sm:h-5 sm:w-6"
                   disabled={busy === p.id || i === data.parts.length - 1}
                   aria-label="Flytt ned"
                   onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'down' } }))}
@@ -274,7 +274,7 @@ function PartFormModal({
           </p>
         )}
         <Field label="Aliaser" hint="Komma-separert. Treff i filnavn → riktig stemme. F.eks: 2nd cornet, cornet 2, kornett 2">
-          <input className="field-input" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="2nd cornet, 2. kornett, cornet 2" />
+          <input className="field-input" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="2nd cornet, 2. kornett, cornet 2" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
         </Field>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -321,7 +321,7 @@ function RolesSection({ data }: { data: Data }) {
         </Button>
       </div>
 
-      <div className="sheet overflow-x-auto">
+      <div className="sheet relative overflow-x-auto overscroll-x-contain after:pointer-events-none after:absolute after:inset-y-px after:right-px after:w-8 after:rounded-r-[13px] after:bg-gradient-to-l after:from-[var(--paper-raised)] after:to-transparent md:after:hidden">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-line">
@@ -359,15 +359,17 @@ function RolesSection({ data }: { data: Data }) {
                 {data.permissionCatalog.map((perm) => {
                   const on = role.isAdmin || role.permissions.includes(perm.key)
                   return (
-                    <td key={perm.key} className="px-2 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={role.isAdmin || busy === `${role.id}:${perm.key}`}
-                        onChange={(e) => toggle(role.id, perm.key, e.target.checked)}
-                        className="h-4 w-4 cursor-pointer accent-[var(--brass)] disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label={`${role.name}: ${perm.label}`}
-                      />
+                    <td key={perm.key} className="px-2 py-1 text-center">
+                      <label className="flex min-h-[40px] cursor-pointer items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          disabled={role.isAdmin || busy === `${role.id}:${perm.key}`}
+                          onChange={(e) => toggle(role.id, perm.key, e.target.checked)}
+                          className="h-4 w-4 cursor-pointer accent-[var(--brass)] disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label={`${role.name}: ${perm.label}`}
+                        />
+                      </label>
                     </td>
                   )
                 })}
@@ -387,7 +389,7 @@ function RolesSection({ data }: { data: Data }) {
                           setBusy(null)
                         }
                       }}
-                      className="cursor-pointer font-mono text-[0.62rem] uppercase tracking-wide text-danger/70 hover:text-danger"
+                      className="-mx-2 -my-1 inline-flex items-center px-2 py-2 font-mono text-[0.62rem] uppercase tracking-wide text-danger/70 transition-colors hover:text-danger"
                     >
                       Slett
                     </button>
@@ -446,7 +448,7 @@ function RenameRole({ roleId, current, onDone }: { roleId: string; current: stri
           setName(current)
           setOpen(true)
         }}
-        className="cursor-pointer font-mono text-[0.58rem] uppercase tracking-wide text-ink-faint hover:text-brass-strong"
+        className="-mx-2 -my-1.5 inline-flex items-center px-3 py-2.5 font-mono text-[0.58rem] uppercase tracking-wide text-ink-faint transition-colors hover:text-brass-strong"
         aria-label="Gi nytt navn"
       >
         endre navn
