@@ -8,6 +8,10 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Skiller mus/presis-peker fra touch: brukes til å gate hover-effekter som
+   ellers «henger igjen» etter et trykk på berøringsskjerm. */
+@custom-variant can-hover (@media (hover: hover));
+
 /* ============================================================
    TERTNES BRASS · NOTEARKIV — «Konsertprogrammet»
    Varmt papir, dyp blekk, antikk messing. Fraunces til plakat-
@@ -184,10 +188,12 @@ body {
 .sheet-hover {
   transition: transform 0.25s cubic-bezier(0.2, 0.6, 0.2, 1), box-shadow 0.25s, border-color 0.25s;
 }
-.sheet-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lift);
-  border-color: var(--line-strong);
+@media (hover: hover) {
+  .sheet-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lift);
+    border-color: var(--line-strong);
+  }
 }
 
 .hairline-row {
@@ -268,10 +274,18 @@ dialog.sheet-dialog {
   color: var(--ink);
   box-shadow: var(--shadow-lift);
   padding: 0;
-  max-width: min(92vw, 560px);
+  max-width: min(94vw, 560px);
   width: 100%;
+  /* Deterministisk høyde på korte/liggende telefoner og når tastaturet er
+     oppe — i stedet for å stole på nettleserens standard. dvh følger iOS-
+     verktøylinjen. Selve rullingen håndteres av modalens body (ui.tsx). */
+  max-height: min(90dvh, calc(100% - 2rem));
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 dialog.sheet-dialog[open] {
+  display: flex;
+  flex-direction: column;
   animation: dialog-in 0.28s cubic-bezier(0.2, 0.65, 0.25, 1);
 }
 dialog.sheet-dialog::backdrop {
@@ -307,6 +321,18 @@ select.field-input {
   background-repeat: no-repeat;
   background-position: right 0.7rem center;
   padding-right: 2rem;
+}
+
+/* iOS Safari zoomer inn hele siden når et felt med skrift < 16px får fokus,
+   og blir værende zoomet. På telefon-bredder løfter vi derfor alle felt til
+   16px. Laptop/tablet (≥ 641px) beholder den kompakte 0.9rem-typografien.
+   De tre kompakte inline-selectene (medlemmer/filrad) har !text-xs og styres
+   til 16px direkte i JSX (!text-base sm:!text-xs) siden et important-utility
+   i Tailwinds lag slår en ulaget regel her. */
+@media (max-width: 640px) {
+  .field-input {
+    font-size: 16px;
+  }
 }
 
 /* ---------- Diverse ---------- */

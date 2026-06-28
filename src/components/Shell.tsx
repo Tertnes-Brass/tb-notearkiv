@@ -148,21 +148,23 @@ export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
             <UserMenu me={me} />
           </div>
         </div>
-        <nav
-          className="flex items-center gap-5 overflow-x-auto border-t border-line px-4 py-2 md:hidden"
-          aria-label="Hovedmeny mobil"
-        >
-          {NAV.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              activeOptions={{ exact: item.exact ?? false }}
-              className="nav-link whitespace-nowrap text-[0.84rem] font-medium text-ink-soft [&[data-status=active]]:text-ink"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="relative md:hidden after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-8 after:bg-gradient-to-l after:from-paper/85 after:to-transparent">
+          <nav
+            className="flex items-center gap-5 overflow-x-auto overscroll-x-contain border-t border-line px-4 py-1.5 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            aria-label="Hovedmeny mobil"
+          >
+            {NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                activeOptions={{ exact: item.exact ?? false }}
+                className="nav-link whitespace-nowrap py-1 text-[0.8rem] font-medium text-ink-soft [&[data-status=active]]:text-ink"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-20 pt-8 sm:px-6 sm:pt-10">{children}</main>

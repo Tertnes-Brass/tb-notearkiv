@@ -124,7 +124,7 @@ function MembersPage() {
                       toastError(err)
                     }
                   }}
-                  className="cursor-pointer font-mono text-[0.64rem] uppercase tracking-wide text-danger/80 hover:text-danger"
+                  className="-mx-2 -my-1.5 inline-flex items-center px-3 py-2.5 font-mono text-[0.64rem] uppercase tracking-wide text-danger/80 transition-colors hover:text-danger"
                 >
                   Trekk tilbake
                 </button>
@@ -148,66 +148,73 @@ function MembersPage() {
                   .map((id) => data.allParts.find((p) => p.id === id)?.nameNo)
                   .filter(Boolean)
                 return (
-                  <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
-                    <Avatar name={m.name} size="sm" />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-[0.92rem] font-semibold text-ink">{m.name}</span>
-                        {m.id === data.meId && <Stamp tone="brass">deg</Stamp>}
+                  <li
+                    key={m.id}
+                    className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2 sm:px-5"
+                  >
+                    <div className="flex min-w-0 items-center gap-3 sm:flex-1">
+                      <Avatar name={m.name} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[0.92rem] font-semibold text-ink">{m.name}</span>
+                          {m.id === data.meId && <Stamp tone="brass">deg</Stamp>}
+                        </span>
+                        <span className="block truncate font-mono text-[0.64rem] text-ink-faint">{m.email}</span>
+                        {leads.length > 0 && (
+                          <span className="mt-0.5 block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-brass-strong">
+                            Leder: {leads.join(' · ')}
+                          </span>
+                        )}
                       </span>
-                      <span className="block truncate font-mono text-[0.64rem] text-ink-faint">{m.email}</span>
-                      {leads.length > 0 && (
-                        <span className="mt-0.5 block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-brass-strong">
-                          Leder: {leads.join(' · ')}
+                    </div>
+
+                    <div className="flex w-full items-center gap-2 sm:contents">
+                      {m.canEditParts ? (
+                        <select
+                          className="field-input min-w-0 flex-1 !py-2 !text-base sm:!w-auto sm:!flex-none sm:!py-1.5 sm:!text-xs"
+                          value={m.parts[0]?.id ?? ''}
+                          disabled={busyId === m.id}
+                          onChange={(e) => setPart(m.id, e.target.value)}
+                        >
+                          <option value="">Ingen stemme</option>
+                          {partOptions.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.parentId ? `↳ ${p.nameNo}` : p.nameNo}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="font-mono text-[0.68rem] uppercase tracking-[0.1em] text-ink-soft">
+                          {m.parts.map((p) => p.name).join(' · ') || '—'}
                         </span>
                       )}
-                    </span>
 
-                    {m.canEditParts ? (
-                      <select
-                        className="field-input !w-auto !py-1.5 !text-xs"
-                        value={m.parts[0]?.id ?? ''}
-                        disabled={busyId === m.id}
-                        onChange={(e) => setPart(m.id, e.target.value)}
-                      >
-                        <option value="">Ingen stemme</option>
-                        {partOptions.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.parentId ? `↳ ${p.nameNo}` : p.nameNo}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="font-mono text-[0.68rem] uppercase tracking-[0.1em] text-ink-soft">
-                        {m.parts.map((p) => p.name).join(' · ') || '—'}
-                      </span>
-                    )}
+                      {data.canManage ? (
+                        <select
+                          className="field-input min-w-0 flex-1 !py-2 !text-base sm:!w-auto sm:!flex-none sm:!py-1.5 sm:!text-xs"
+                          value={m.roleId}
+                          disabled={busyId === m.id}
+                          onChange={(e) => setRole(m.id, e.target.value)}
+                        >
+                          {data.allRoles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Stamp tone={m.roleId === 'member' ? 'neutral' : 'brass'}>{m.roleName}</Stamp>
+                      )}
 
-                    {data.canManage ? (
-                      <select
-                        className="field-input !w-auto !py-1.5 !text-xs"
-                        value={m.roleId}
-                        disabled={busyId === m.id}
-                        onChange={(e) => setRole(m.id, e.target.value)}
-                      >
-                        {data.allRoles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Stamp tone={m.roleId === 'member' ? 'neutral' : 'brass'}>{m.roleName}</Stamp>
-                    )}
-
-                    {data.canManage && (
-                      <button
-                        onClick={() => setLeaderFor(m)}
-                        className="cursor-pointer rounded-lg px-2.5 py-1.5 font-mono text-[0.6rem] uppercase tracking-wide text-ink-faint transition-colors hover:bg-paper-sunken hover:text-brass-strong"
-                      >
-                        Leder…
-                      </button>
-                    )}
+                      {data.canManage && (
+                        <button
+                          onClick={() => setLeaderFor(m)}
+                          className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center rounded-lg px-2.5 py-1.5 font-mono text-[0.6rem] uppercase tracking-wide text-ink-faint transition-colors hover:bg-paper-sunken hover:text-brass-strong"
+                        >
+                          Leder…
+                        </button>
+                      )}
+                    </div>
                   </li>
                 )
               })}
@@ -371,6 +378,10 @@ function InviteModal({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="navn@example.com"
+            autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             autoFocus
           />
         </Field>
@@ -382,7 +393,7 @@ function InviteModal({
             placeholder="Ola Nordmann"
           />
         </Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Rolle">
             <select className="field-input" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
               {allRoles.map((r) => (
@@ -403,11 +414,11 @@ function InviteModal({
             </select>
           </Field>
         </div>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" onClick={onClose} className="w-full sm:w-auto">
             Avbryt
           </Button>
-          <Button type="submit" variant="primary" loading={saving}>
+          <Button type="submit" variant="primary" loading={saving} className="w-full sm:w-auto">
             Inviter
           </Button>
         </div>

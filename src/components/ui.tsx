@@ -141,22 +141,22 @@ export function Modal({
         if (e.target === ref.current) onClose()
       }}
     >
-      <div className="px-6 pt-5 pb-6 sm:px-7">
+      <div className="shrink-0 px-6 pt-5 sm:px-7">
         {kicker && <Kicker className="mb-1">{kicker}</Kicker>}
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
           <h2 className="display-title text-xl font-semibold">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Lukk"
-            className="-mr-2 -mt-1 grid h-8 w-8 cursor-pointer place-items-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink"
+            className="-mr-2 -mt-1 grid h-9 w-9 cursor-pointer place-items-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink active:scale-95"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
               <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
           </button>
         </div>
-        {children}
       </div>
+      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 sm:px-7">{children}</div>
     </dialog>
   )
 }

@@ -70,6 +70,10 @@ function ArchivePage() {
             defaultValue={q ?? ''}
             placeholder="Søk på tittel, komponist eller arrangør …"
             className="field-input !pl-9"
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             onChange={(e) => {
               const value = e.target.value
               navigate({ search: { q: value || undefined }, replace: true })
