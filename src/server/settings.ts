@@ -13,7 +13,9 @@ export const PERMISSION_CATALOG: Array<{ key: string; label: string; hint: strin
   { key: 'projects.manage', label: 'Prosjekter', hint: 'Lage prosjekter, sette repertoar, publisere' },
   { key: 'shares.manage', label: 'Vikarlenker', hint: 'Dele stemmer med vikarer' },
   { key: 'members.manage', label: 'Medlemmer', hint: 'Invitere og endre roller/stemmer' },
+  { key: 'members.manage.section', label: 'Lede egen seksjon', hint: 'Tildele understemmer til folk i egen seksjon' },
   { key: 'scores.view', label: 'Partitur', hint: 'Se og laste ned partitur' },
+  { key: 'archive.viewAll', label: 'Se hele arkivet', hint: 'Se og laste ned ALLE stemmer, ikke bare egne' },
   { key: SETTINGS_PERMISSION, label: 'Innstillinger', hint: 'Administrere besetning og roller' },
 ]
 
@@ -71,6 +73,7 @@ export const getSettingsData = createServerFn().handler(async () => {
       nameNo: p.nameNo,
       nameEn: p.nameEn,
       section: p.section,
+      parentId: p.parentId,
       aliases: JSON.parse(p.aliases) as string[],
       inUse: (fileCount.get(p.id) ?? 0) + (memberPartCount.get(p.id) ?? 0),
       fileCount: fileCount.get(p.id) ?? 0,
@@ -95,12 +98,36 @@ const partInput = z.object({
   nameEn: z.string().min(1, 'Engelsk navn er påkrevd'),
   section: z.enum(SECTIONS),
   aliases: z.array(z.string()).default([]),
+  parentId: z.string().nullable().optional(),
 })
+
+/**
+ * Håndhever stemme-tre-invariantene: maks to nivåer, ingen sykel, og 'score'
+ * aldri i treet. `selfId` er null ved opprettelse.
+ */
+async function assertValidParent(
+  parentId: string | null | undefined,
+  selfId: string | null,
+  section: string,
+): Promise<void> {
+  if (!parentId) return
+  if (section === 'score') throw new Error('Partitur kan ikke ha en forelder-stemme')
+  if (parentId === 'score') throw new Error('Partitur kan ikke være forelder-stemme')
+  if (selfId && parentId === selfId) throw new Error('En stemme kan ikke være sin egen forelder')
+  const rows = await db().select({ id: parts.id, parentId: parts.parentId }).from(parts)
+  const parent = rows.find((r) => r.id === parentId)
+  if (!parent) throw new Error('Ukjent forelder-stemme')
+  if (parent.parentId) throw new Error('Maks to nivåer: forelderen er allerede en understemme')
+  if (selfId && rows.some((r) => r.parentId === selfId)) {
+    throw new Error('Denne stemmen har egne understemmer og kan ikke flyttes under en annen')
+  }
+}
 
 export const createPart = createServerFn({ method: 'POST' })
   .validator(partInput)
   .handler(async ({ data }) => {
     await requirePermission(SETTINGS_PERMISSION)
+    await assertValidParent(data.parentId, null, data.section)
     const d = db()
     // Unik slug fra engelsk navn
     let id = slugify(data.nameEn)
@@ -117,6 +144,7 @@ export const createPart = createServerFn({ method: 'POST' })
       nameNo: data.nameNo.trim(),
       nameEn: data.nameEn.trim(),
       section: data.section,
+      parentId: data.parentId ?? null,
       aliases: JSON.stringify(data.aliases.map((a) => a.trim()).filter(Boolean)),
     })
     return { id }
@@ -126,12 +154,14 @@ export const updatePart = createServerFn({ method: 'POST' })
   .validator(partInput.extend({ id: z.string() }))
   .handler(async ({ data }) => {
     await requirePermission(SETTINGS_PERMISSION)
+    await assertValidParent(data.parentId, data.id, data.section)
     await db()
       .update(parts)
       .set({
         nameNo: data.nameNo.trim(),
         nameEn: data.nameEn.trim(),
         section: data.section,
+        parentId: data.parentId ?? null,
         aliases: JSON.stringify(data.aliases.map((a) => a.trim()).filter(Boolean)),
       })
       .where(eq(parts.id, data.id))
@@ -149,6 +179,13 @@ export const deletePart = createServerFn({ method: 'POST' })
       .where(eq(workFiles.partId, data.id))
     if ((files[0]?.n ?? 0) > 0) {
       throw new Error(`Stemmen er i bruk på ${files[0]!.n} fil(er). Flytt eller slett dem først.`)
+    }
+    const children = await d
+      .select({ n: sql<number>`count(*)` })
+      .from(parts)
+      .where(eq(parts.parentId, data.id))
+    if ((children[0]?.n ?? 0) > 0) {
+      throw new Error(`Stemmen har ${children[0]!.n} understemme(r). Flytt eller slett dem først.`)
     }
     // user_parts fjernes via cascade
     await d.delete(parts).where(eq(parts.id, data.id))

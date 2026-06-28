@@ -11,6 +11,8 @@ export type PartDef = {
   nameEn: string
   aliases: string[]
   section: 'cornet' | 'horn' | 'trombone' | 'low' | 'perc' | 'score'
+  // Valgfri forelder-stemme (nøsting). Udefinert = rotnode/selvstendig blad.
+  parentId?: string
 }
 
 export const SECTION_LABELS: Record<PartDef['section'], string> = {

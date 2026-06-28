@@ -7,9 +7,13 @@ import {
   inviteMember,
   listMembers,
   revokeInvitation,
+  setSectionLeaderParts,
   updateMemberParts,
   updateMemberRole,
 } from '../../server/members'
+
+type Data = Awaited<ReturnType<typeof listMembers>>
+type Member = Data['members'][number]
 
 export const Route = createFileRoute('/medlemmer/')({
   beforeLoad: ({ context }) => {
@@ -23,6 +27,13 @@ function MembersPage() {
   const data = Route.useLoaderData()
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [leaderFor, setLeaderFor] = useState<Member | null>(null)
+
+  // Stemmer denne brukeren kan tildele: alle (admin) eller eget omfang (leder).
+  const partOptions =
+    data.assignablePartIds == null
+      ? data.allParts
+      : data.allParts.filter((p) => data.assignablePartIds!.includes(p.id))
 
   // Grupper etter seksjonen til primærstemmen
   const groups = new Map<string, typeof data.members>()
@@ -72,7 +83,11 @@ function MembersPage() {
           <h1 className="display-title text-4xl font-semibold italic text-ink sm:text-5xl">Medlemmer</h1>
           <p className="mt-2 text-sm text-ink-soft">
             {data.members.length} musikere og stab.{' '}
-            {data.canManage ? 'Du kan invitere, og endre stemmer og roller.' : 'Du kan endre din egen stemme.'}
+            {data.canManage
+              ? 'Du kan invitere, og endre stemmer og roller.'
+              : data.canManageSection
+                ? 'Du kan endre stemmer for medlemmer i din seksjon.'
+                : 'Stemmer settes av seksjonsleder eller administrator.'}
           </p>
         </div>
         {data.canManage && (
@@ -129,7 +144,9 @@ function MembersPage() {
             </div>
             <ul className="sheet divide-y divide-[var(--line)] overflow-hidden">
               {groups.get(key)!.map((m) => {
-                const canEditThis = data.canManage || m.id === data.meId
+                const leads = m.leaderPartIds
+                  .map((id) => data.allParts.find((p) => p.id === id)?.nameNo)
+                  .filter(Boolean)
                 return (
                   <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
                     <Avatar name={m.name} size="sm" />
@@ -139,9 +156,14 @@ function MembersPage() {
                         {m.id === data.meId && <Stamp tone="brass">deg</Stamp>}
                       </span>
                       <span className="block truncate font-mono text-[0.64rem] text-ink-faint">{m.email}</span>
+                      {leads.length > 0 && (
+                        <span className="mt-0.5 block font-mono text-[0.6rem] uppercase tracking-[0.1em] text-brass-strong">
+                          Leder: {leads.join(' · ')}
+                        </span>
+                      )}
                     </span>
 
-                    {canEditThis ? (
+                    {m.canEditParts ? (
                       <select
                         className="field-input !w-auto !py-1.5 !text-xs"
                         value={m.parts[0]?.id ?? ''}
@@ -149,9 +171,9 @@ function MembersPage() {
                         onChange={(e) => setPart(m.id, e.target.value)}
                       >
                         <option value="">Ingen stemme</option>
-                        {data.allParts.map((p) => (
+                        {partOptions.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.nameNo}
+                            {p.parentId ? `↳ ${p.nameNo}` : p.nameNo}
                           </option>
                         ))}
                       </select>
@@ -177,6 +199,15 @@ function MembersPage() {
                     ) : (
                       <Stamp tone={m.roleId === 'member' ? 'neutral' : 'brass'}>{m.roleName}</Stamp>
                     )}
+
+                    {data.canManage && (
+                      <button
+                        onClick={() => setLeaderFor(m)}
+                        className="cursor-pointer rounded-lg px-2.5 py-1.5 font-mono text-[0.6rem] uppercase tracking-wide text-ink-faint transition-colors hover:bg-paper-sunken hover:text-brass-strong"
+                      >
+                        Leder…
+                      </button>
+                    )}
                   </li>
                 )
               })}
@@ -193,7 +224,92 @@ function MembersPage() {
           onInvited={() => router.invalidate()}
         />
       )}
+
+      {data.canManage && leaderFor && (
+        <LeaderModal
+          key={leaderFor.id}
+          member={leaderFor}
+          allParts={data.allParts}
+          onClose={() => setLeaderFor(null)}
+          onSaved={() => {
+            setLeaderFor(null)
+            router.invalidate()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function LeaderModal({
+  member,
+  allParts,
+  onClose,
+  onSaved,
+}: {
+  member: Member
+  allParts: Data['allParts']
+  onClose: () => void
+  onSaved: () => void
+}) {
+  // Man leder seksjoner/topp-stemmer; å lede en forelder gir omfang over barna.
+  const leadable = allParts.filter((p) => !p.parentId)
+  const [selected, setSelected] = useState<Set<string>>(new Set(member.leaderPartIds))
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+
+  const submit = async () => {
+    setSaving(true)
+    try {
+      await setSectionLeaderParts({ data: { userId: member.id, partIds: [...selected] } })
+      toast('Seksjonsleder oppdatert')
+      onSaved()
+    } catch (err) {
+      toastError(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Seksjonsleder" kicker={member.name}>
+      <p className="mb-4 text-sm leading-relaxed text-ink-soft">
+        Velg seksjonene <span className="font-semibold text-ink">{member.name}</span> kan tildele stemmer for. Å lede en
+        seksjons-stemme gir omfang over alle understemmene. Krever i tillegg at medlemmets rolle har rettigheten «Lede
+        egen seksjon».
+      </p>
+      <div className="max-h-72 space-y-1 overflow-y-auto">
+        {leadable.map((p) => (
+          <label
+            key={p.id}
+            className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-paper-sunken"
+          >
+            <input
+              type="checkbox"
+              checked={selected.has(p.id)}
+              onChange={() => toggle(p.id)}
+              className="h-4 w-4 cursor-pointer accent-[var(--brass)]"
+            />
+            <span className="text-sm text-ink">{p.nameNo}</span>
+          </label>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2 pt-4">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Avbryt
+        </Button>
+        <Button type="button" variant="primary" loading={saving} onClick={submit}>
+          Lagre
+        </Button>
+      </div>
+    </Modal>
   )
 }
 

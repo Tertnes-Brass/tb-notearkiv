@@ -4,9 +4,10 @@ import { asc, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { inArray } from 'drizzle-orm'
 import { db } from '../db'
-import { invitations, memberProfiles, parts, roles, user, userParts } from '../db/schema'
-import { hasPermission, requireMe, requirePermission } from './access'
+import { invitations, memberProfiles, parts, roles, sectionLeaders, user, userParts } from '../db/schema'
+import { canManageMemberParts, hasPermission, requireMe, requirePermission } from './access'
 import { getAuth } from './auth-instance'
+import { leaderCanAssign } from './parts-tree'
 
 /** Sjekker at rolle + stemmer faktisk finnes (partIds lagres uten FK i JSON). */
 async function assertValidRoleAndParts(roleId: string, partIds: string[]): Promise<void> {
@@ -70,6 +71,25 @@ export const listMembers = createServerFn().handler(async () => {
   const allParts = await d.select().from(parts).orderBy(asc(parts.sortOrder))
   const allRoles = await d.select().from(roles)
   const canManage = hasPermission(me, 'members.manage')
+  const canManageSection = hasPermission(me, 'members.manage.section')
+
+  // Seksjonsleder-bindinger (for «hvem kan jeg redigere» + admin-UI).
+  const leaderRows = await d.select().from(sectionLeaders)
+  const leadersByUser = new Map<string, string[]>()
+  for (const lr of leaderRows) {
+    const list = leadersByUser.get(lr.userId) ?? []
+    list.push(lr.partId)
+    leadersByUser.set(lr.userId, list)
+  }
+  const membersOut = members.map((m) => {
+    const memberPartIds = m.parts.map((p) => p.id)
+    return {
+      ...m,
+      // Global ⇒ alle; seksjonsleder ⇒ kun medlemmer helt innenfor eget omfang.
+      canEditParts: canManage || (canManageSection && leaderCanAssign(me.leadsPartIds, memberPartIds, memberPartIds)),
+      leaderPartIds: leadersByUser.get(m.id) ?? [],
+    }
+  })
 
   const pendingInvites = canManage
     ? await d
@@ -87,10 +107,13 @@ export const listMembers = createServerFn().handler(async () => {
     : []
 
   return {
-    members,
+    members: membersOut,
     allParts: allParts.filter((p) => p.section !== 'score'),
     allRoles,
     canManage,
+    canManageSection,
+    // null = full tilgang (alle stemmer); ellers begrenset til ledelsesomfanget.
+    assignablePartIds: canManage ? null : me.leadsPartIds,
     meId: me.id,
     invites: pendingInvites
       .filter((i) => !i.acceptedAt)
@@ -108,16 +131,39 @@ export const updateMemberParts = createServerFn({ method: 'POST' })
   .validator(z.object({ userId: z.string(), partIds: z.array(z.string()).max(4) }))
   .handler(async ({ data }) => {
     const me = await requireMe()
-    if (me.id !== data.userId && !hasPermission(me, 'members.manage')) {
-      throw new Error('Du kan bare endre din egen stemme')
+    // Hard tilgang: stemme = tilgang, derfor INGEN self-service. Bare global
+    // members.manage eller seksjonsleder (innenfor eget omfang) kan tildele.
+    if (!(await canManageMemberParts(me, data.userId, data.partIds))) {
+      throw new Error('Du har ikke tilgang til å endre stemmer for dette medlemmet')
     }
-    await assertValidRoleAndParts(me.roleId, data.partIds) // gjenbruk: validerer partIds
     const d = db()
+    await assertValidRoleAndParts(me.roleId, data.partIds) // gjenbruk: validerer partIds
     await d.delete(userParts).where(eq(userParts.userId, data.userId))
     if (data.partIds.length > 0) {
       await d.insert(userParts).values(
         data.partIds.map((partId, i) => ({ userId: data.userId, partId, isPrimary: i === 0 })),
       )
+    }
+    return { ok: true }
+  })
+
+/**
+ * Setter hvilke stemmer/seksjoner en bruker er seksjonsleder for (full
+ * overskriving). KRITISK: gated på GLOBAL `members.manage` — ALDRI
+ * `members.manage.section`, ellers kunne en leder utvidet sitt eget omfang.
+ */
+export const setSectionLeaderParts = createServerFn({ method: 'POST' })
+  .validator(z.object({ userId: z.string(), partIds: z.array(z.string()) }))
+  .handler(async ({ data }) => {
+    await requirePermission('members.manage')
+    const d = db()
+    if (data.partIds.length > 0) {
+      const found = await d.select({ id: parts.id }).from(parts).where(inArray(parts.id, data.partIds))
+      if (found.length !== new Set(data.partIds).size) throw new Error('Ukjent stemme')
+    }
+    await d.delete(sectionLeaders).where(eq(sectionLeaders.userId, data.userId))
+    if (data.partIds.length > 0) {
+      await d.insert(sectionLeaders).values(data.partIds.map((partId) => ({ userId: data.userId, partId })))
     }
     return { ok: true }
   })

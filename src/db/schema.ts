@@ -1,4 +1,5 @@
 import {
+  type AnySQLiteColumn,
   index,
   integer,
   primaryKey,
@@ -68,6 +69,9 @@ export const parts = sqliteTable('parts', {
   // JSON-array med aliaser for filnavn-gjenkjenning, f.eks. ["2nd cornet","2. kornett"]
   aliases: text('aliases').notNull().default('[]'),
   section: text('section').notNull(), // 'cornet' | 'horn' | 'trombone' | 'low-brass' | 'percussion' | 'score'
+  // Nullable self-FK for nøstede stemmer: en forelder-stemme («Slagverk»)
+  // dekker barna sine (Slagverk 1/2/3 …). NULL = rotnode / selvstendig blad.
+  parentId: text('parent_id').references((): AnySQLiteColumn => parts.id),
 })
 
 export const userParts = sqliteTable(
@@ -80,6 +84,21 @@ export const userParts = sqliteTable(
       .notNull()
       .references(() => parts.id, { onDelete: 'cascade' }),
     isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(true),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.partId] })],
+)
+
+// Seksjonsledere: binder en bruker til en stemme/seksjon hen kan administrere
+// (tildele understemmer til andre i seksjonen). Scope for `members.manage.section`.
+export const sectionLeaders = sqliteTable(
+  'section_leaders',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    partId: text('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.userId, t.partId] })],
 )

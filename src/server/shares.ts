@@ -5,6 +5,8 @@ import { db } from '../db'
 import { parts, projects, shareLinks, workFiles, workLinks, works, projectWorks } from '../db/schema'
 import { newId, newShareToken, sha256Hex } from '../lib/id'
 import { requirePermission } from './access'
+import { shareAllows } from './file-access'
+import { buildChildrenMap, expandPartIds } from './parts-tree'
 
 export const listShares = createServerFn()
   .validator(z.object({ projectId: z.string() }))
@@ -43,13 +45,25 @@ export const createShare = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const me = await requirePermission('shares.manage')
     const d = db()
+
+    // Snapshot-til-løv: valider stemmene, ekspander forelder → barn, og lagre
+    // KUN konkrete løv-id-er. Da fryses vikarens omfang ved opprettelse — en
+    // senere tre-endring kan ikke utvide en gammel lenke stille — og fil-gaten
+    // blir en ren medlemskaps-sjekk (`shareAllows`).
+    const allPartRows = await d.select({ id: parts.id, parentId: parts.parentId }).from(parts)
+    const known = new Set(allPartRows.map((r) => r.id))
+    if (data.partIds.some((id) => !known.has(id))) throw new Error('Ukjent stemme')
+    const childrenMap = buildChildrenMap(allPartRows)
+    const leafIds = expandPartIds(data.partIds, childrenMap).filter((id) => !childrenMap.has(id))
+    if (leafIds.length === 0) throw new Error('Valgte stemmer har ingen konkrete understemmer å dele')
+
     const token = newShareToken()
     await d.insert(shareLinks).values({
       id: newId(),
       projectId: data.projectId,
       tokenHash: await sha256Hex(token),
       recipientName: data.recipientName.trim(),
-      partIds: JSON.stringify(data.partIds),
+      partIds: JSON.stringify(leafIds),
       expiresAt: new Date(Date.now() + data.days * 86_400_000),
       createdBy: me.id,
       createdAt: new Date(),
@@ -141,11 +155,7 @@ export const getShareView = createServerFn()
       repertoire: repertoire.map((r) => ({
         ...r,
         files: files
-          .filter(
-            (f) =>
-              f.workId === r.workId &&
-              ((f.kind === 'part' && f.partId && partIds.includes(f.partId)) || f.kind === 'audio'),
-          )
+          .filter((f) => f.workId === r.workId && shareAllows({ kind: f.kind, partId: f.partId }, partIds))
           .map((f) => ({ id: f.id, kind: f.kind, partName: f.partName, fileName: f.fileName, pageCount: f.pageCount })),
         links: links
           .filter((l) => l.workId === r.workId)

@@ -7,6 +7,7 @@ import { parts, projectWorks, projects, workFiles, workLinks, works } from '../d
 import { newId } from '../lib/id'
 import { guessPartFromFilename } from '../lib/taxonomy'
 import { hasPermission, requireMe, requirePermission } from './access'
+import { memberCanSeeFile } from './file-access'
 
 export const listWorks = createServerFn()
   .validator(z.object({ q: z.string().optional() }).optional())
@@ -91,15 +92,28 @@ export const getWork = createServerFn()
 
     files.sort((a, b) => (a.partSort ?? 900) - (b.partSort ?? 900))
 
+    // Hard tilgang: et vanlig medlem ser bare egne stemme-filer (+ partitur/lyd
+    // som metadata); andres stemmer og uplassert skjules. Verket og metadata er
+    // fortsatt synlig. Filtreres server-side, ikke bare i UI.
+    const canViewAll = hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll')
+    const visibleFiles = canViewAll
+      ? files
+      : files.filter((f) =>
+          memberCanSeeFile(
+            { kind: f.kind, partId: f.partId },
+            { effectivePartIds: me.effectivePartIds, canViewScore: hasPermission(me, 'scores.view'), canViewAll: false },
+          ),
+        )
+
     return {
       work: workRow,
-      files,
+      files: visibleFiles,
       links,
       allParts,
       usedIn,
       canManage: hasPermission(me, 'works.manage'),
       canViewScore: hasPermission(me, 'scores.view'),
-      myPartIds: me.parts.map((p) => p.id),
+      effectivePartIds: me.effectivePartIds,
     }
   })
 

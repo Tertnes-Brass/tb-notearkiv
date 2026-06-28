@@ -25,7 +25,7 @@ export type ProjectWorkDetail = {
 export async function assembleRepertoire(
   d: Db,
   projectId: string,
-  opts: { myPartIds: string[]; includeScore: boolean },
+  opts: { effectivePartIds: string[]; includeScore: boolean; canViewAll: boolean },
 ): Promise<ProjectWorkDetail[]> {
   const rows = await d
     .select({
@@ -67,8 +67,10 @@ export async function assembleRepertoire(
 
   return rows.map((r) => {
     const wf = files.filter((f) => f.workId === r.workId)
+    // Hard tilgang: uten fullt arkivinnsyn ser et medlem kun egne stemmer i
+    // «alle stemmer»-listen (samme sett som fil-gaten slipper gjennom).
     const partFiles = wf
-      .filter((f) => f.kind === 'part')
+      .filter((f) => f.kind === 'part' && (opts.canViewAll || (!!f.partId && opts.effectivePartIds.includes(f.partId))))
       .map((f) => ({ id: f.id, partId: f.partId, partName: f.partName, partSort: f.partSort ?? 900, pageCount: f.pageCount }))
       .sort((a, b) => a.partSort - b.partSort)
     const score = wf.find((f) => f.kind === 'score')
@@ -77,7 +79,7 @@ export async function assembleRepertoire(
       links: links.filter((l) => l.workId === r.workId).map((l) => ({ id: l.id, kind: l.kind, url: l.url, label: l.label })),
       partFiles,
       myFiles: wf
-        .filter((f) => f.kind === 'part' && f.partId && opts.myPartIds.includes(f.partId))
+        .filter((f) => f.kind === 'part' && f.partId && opts.effectivePartIds.includes(f.partId))
         .map((f) => ({ id: f.id, partName: f.partName, pageCount: f.pageCount })),
       scoreFileId: opts.includeScore && score ? score.id : null,
       audioFiles: wf
@@ -101,8 +103,9 @@ export const getHome = createServerFn().handler(async () => {
   const next = upcoming[0] ?? null
   const repertoire = next
     ? await assembleRepertoire(d, next.id, {
-        myPartIds: me.parts.map((p) => p.id),
+        effectivePartIds: me.effectivePartIds,
         includeScore: hasPermission(me, 'scores.view'),
+        canViewAll: hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll'),
       })
     : []
 
@@ -158,8 +161,9 @@ export const getProject = createServerFn()
     if (!project.isPublished && !canManage) throw new Error('Prosjektet er ikke publisert ennå')
 
     const repertoire = await assembleRepertoire(d, project.id, {
-      myPartIds: me.parts.map((p) => p.id),
+      effectivePartIds: me.effectivePartIds,
       includeScore: hasPermission(me, 'scores.view'),
+      canViewAll: hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll'),
     })
 
     return {
