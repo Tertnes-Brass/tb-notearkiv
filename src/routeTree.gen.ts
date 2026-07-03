@@ -17,6 +17,7 @@ import { Route as InnstillingerIndexRouteImport } from './routes/innstillinger/i
 import { Route as ArkivIndexRouteImport } from './routes/arkiv/index'
 import { Route as VTokenRouteImport } from './routes/v/$token'
 import { Route as ProsjekterProjectIdRouteImport } from './routes/prosjekter/$projectId'
+import { Route as InnstillingerNedlastingerRouteImport } from './routes/innstillinger/nedlastinger'
 import { Route as ArkivWorkIdRouteImport } from './routes/arkiv/$workId'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiDevSeedRouteImport } from './routes/api/dev-seed'
@@ -63,6 +64,12 @@ const ProsjekterProjectIdRoute = ProsjekterProjectIdRouteImport.update({
   path: '/prosjekter/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InnstillingerNedlastingerRoute =
+  InnstillingerNedlastingerRouteImport.update({
+    id: '/innstillinger/nedlastinger',
+    path: '/innstillinger/nedlastinger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ArkivWorkIdRoute = ArkivWorkIdRouteImport.update({
   id: '/arkiv/$workId',
   path: '/arkiv/$workId',
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/api/dev-seed': typeof ApiDevSeedRoute
   '/api/upload': typeof ApiUploadRoute
   '/arkiv/$workId': typeof ArkivWorkIdRoute
+  '/innstillinger/nedlastinger': typeof InnstillingerNedlastingerRoute
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
   '/v/$token': typeof VTokenRoute
   '/arkiv/': typeof ArkivIndexRoute
@@ -110,6 +118,7 @@ export interface FileRoutesByTo {
   '/api/dev-seed': typeof ApiDevSeedRoute
   '/api/upload': typeof ApiUploadRoute
   '/arkiv/$workId': typeof ArkivWorkIdRoute
+  '/innstillinger/nedlastinger': typeof InnstillingerNedlastingerRoute
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
   '/v/$token': typeof VTokenRoute
   '/arkiv': typeof ArkivIndexRoute
@@ -126,6 +135,7 @@ export interface FileRoutesById {
   '/api/dev-seed': typeof ApiDevSeedRoute
   '/api/upload': typeof ApiUploadRoute
   '/arkiv/$workId': typeof ArkivWorkIdRoute
+  '/innstillinger/nedlastinger': typeof InnstillingerNedlastingerRoute
   '/prosjekter/$projectId': typeof ProsjekterProjectIdRoute
   '/v/$token': typeof VTokenRoute
   '/arkiv/': typeof ArkivIndexRoute
@@ -143,6 +153,7 @@ export interface FileRouteTypes {
     | '/api/dev-seed'
     | '/api/upload'
     | '/arkiv/$workId'
+    | '/innstillinger/nedlastinger'
     | '/prosjekter/$projectId'
     | '/v/$token'
     | '/arkiv/'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/api/dev-seed'
     | '/api/upload'
     | '/arkiv/$workId'
+    | '/innstillinger/nedlastinger'
     | '/prosjekter/$projectId'
     | '/v/$token'
     | '/arkiv'
@@ -173,6 +185,7 @@ export interface FileRouteTypes {
     | '/api/dev-seed'
     | '/api/upload'
     | '/arkiv/$workId'
+    | '/innstillinger/nedlastinger'
     | '/prosjekter/$projectId'
     | '/v/$token'
     | '/arkiv/'
@@ -189,6 +202,7 @@ export interface RootRouteChildren {
   ApiDevSeedRoute: typeof ApiDevSeedRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ArkivWorkIdRoute: typeof ArkivWorkIdRoute
+  InnstillingerNedlastingerRoute: typeof InnstillingerNedlastingerRoute
   ProsjekterProjectIdRoute: typeof ProsjekterProjectIdRoute
   VTokenRoute: typeof VTokenRoute
   ArkivIndexRoute: typeof ArkivIndexRoute
@@ -257,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProsjekterProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/innstillinger/nedlastinger': {
+      id: '/innstillinger/nedlastinger'
+      path: '/innstillinger/nedlastinger'
+      fullPath: '/innstillinger/nedlastinger'
+      preLoaderRoute: typeof InnstillingerNedlastingerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/arkiv/$workId': {
       id: '/arkiv/$workId'
       path: '/arkiv/$workId'
@@ -301,6 +322,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDevSeedRoute: ApiDevSeedRoute,
   ApiUploadRoute: ApiUploadRoute,
   ArkivWorkIdRoute: ArkivWorkIdRoute,
+  InnstillingerNedlastingerRoute: InnstillingerNedlastingerRoute,
   ProsjekterProjectIdRoute: ProsjekterProjectIdRoute,
   VTokenRoute: VTokenRoute,
   ArkivIndexRoute: ArkivIndexRoute,
@@ -313,12 +335,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

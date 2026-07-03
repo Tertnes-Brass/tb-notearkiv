@@ -1,0 +1,1 @@
+CREATE INDEX `download_log_at_idx` ON `download_log` (`at`);

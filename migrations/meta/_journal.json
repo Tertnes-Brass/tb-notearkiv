@@ -15,6 +15,13 @@
       "when": 1782554476352,
       "tag": "0001_nested_parts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783117323796,
+      "tag": "0002_download-log-at-idx",
+      "breakpoints": true
     }
   ]
 }

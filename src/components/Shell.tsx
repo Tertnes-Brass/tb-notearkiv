@@ -103,7 +103,11 @@ function UserMenu({ me }: { me: Me }) {
   )
 }
 
-type NavItem = { to: '/' | '/prosjekter' | '/arkiv' | '/medlemmer' | '/innstillinger'; label: string; exact?: boolean }
+type NavItem = {
+  to: '/' | '/prosjekter' | '/arkiv' | '/medlemmer' | '/innstillinger' | '/innstillinger/nedlastinger'
+  label: string
+  exact?: boolean
+}
 
 const BASE_NAV: NavItem[] = [
   { to: '/', label: 'Hjem', exact: true },
@@ -114,9 +118,11 @@ const BASE_NAV: NavItem[] = [
 
 export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
   const canManageSettings = me.permissions.includes('*') || me.permissions.includes('settings.manage')
-  const NAV: NavItem[] = canManageSettings
-    ? [...BASE_NAV, { to: '/innstillinger', label: 'Innstillinger' }]
-    : BASE_NAV
+  const canViewDownloads = me.permissions.includes('*') || me.permissions.includes('downloads.view')
+  const NAV: NavItem[] = [...BASE_NAV]
+  if (canViewDownloads) NAV.push({ to: '/innstillinger/nedlastinger', label: 'Nedlastinger' })
+  // exact, ellers markeres Innstillinger som aktiv også på /innstillinger/nedlastinger
+  if (canManageSettings) NAV.push({ to: '/innstillinger', label: 'Innstillinger', exact: true })
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur-md">
