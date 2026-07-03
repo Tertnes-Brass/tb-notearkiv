@@ -1,6 +1,16 @@
 const dateFmt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
 const dateShortFmt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short' })
 const weekdayFmt = new Intl.DateTimeFormat('nb-NO', { weekday: 'long' })
+const dateTimeFmt = new Intl.DateTimeFormat('nb-NO', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  // Eksplisitt tidssone: SSR kjører i UTC (workerd), og runtime-tidssonen
+  // ville gitt hydration-mismatch mot klientens norske tid.
+  timeZone: 'Europe/Oslo',
+})
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -15,6 +25,11 @@ export function formatDateShort(iso: string | null | undefined): string {
 export function formatWeekday(iso: string | null | undefined): string {
   if (!iso) return ''
   return weekdayFmt.format(new Date(`${iso}T12:00:00`))
+}
+
+/** Epoch-ms → «3. jul. 2026, 14:30» */
+export function formatDateTime(ms: number): string {
+  return dateTimeFmt.format(new Date(ms))
 }
 
 /** «om 13 dager», «i dag», «for 3 dager siden» */

@@ -233,7 +233,7 @@ export const downloadLog = sqliteTable(
       .references(() => workFiles.id, { onDelete: 'cascade' }),
     at: integer('at', { mode: 'timestamp_ms' }).notNull(),
   },
-  (t) => [index('download_log_file_idx').on(t.workFileId)],
+  (t) => [index('download_log_file_idx').on(t.workFileId), index('download_log_at_idx').on(t.at)],
 )
 
 // ---------- Innstillinger ----------

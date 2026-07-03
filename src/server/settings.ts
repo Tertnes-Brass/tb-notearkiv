@@ -16,6 +16,7 @@ export const PERMISSION_CATALOG: Array<{ key: string; label: string; hint: strin
   { key: 'members.manage.section', label: 'Lede egen seksjon', hint: 'Tildele understemmer til folk i egen seksjon' },
   { key: 'scores.view', label: 'Partitur', hint: 'Se og laste ned partitur' },
   { key: 'archive.viewAll', label: 'Se hele arkivet', hint: 'Se og laste ned ALLE stemmer, ikke bare egne' },
+  { key: 'downloads.view', label: 'Nedlastingslogg', hint: 'Se hvem som har lastet ned hvilke filer' },
   { key: SETTINGS_PERMISSION, label: 'Innstillinger', hint: 'Administrere besetning og roller' },
 ]
 
