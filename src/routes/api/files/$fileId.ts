@@ -92,10 +92,15 @@ export const Route = createFileRoute('/api/files/$fileId')({
           }
         }
 
-        const disposition = `${wantsDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.fileName)}"`
+        // RFC 5987-dobbelform: filename* gir korrekte norske filnavn (æøå),
+        // ASCII-fallback må stripe " og \ siden fileName er brukerstyrt.
+        const asciiFallback = file.fileName.replace(/["\\]/g, "'").replace(/[^\x20-\x7E]/g, '_')
+        const disposition = `${wantsDownload ? 'attachment' : 'inline'}; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`
         return new Response(object.body, {
           headers: {
-            'Content-Type': contentTypeFor(file.fileName),
+            // octet-stream ved nedlasting hindrer iOS Safari i å overstyre
+            // attachment og åpne PDF-en i innebygd viewer i stedet (#21).
+            'Content-Type': wantsDownload ? 'application/octet-stream' : contentTypeFor(file.fileName),
             'Content-Length': String(object.size),
             'Content-Disposition': disposition,
             'Cache-Control': 'private, max-age=300',
