@@ -326,7 +326,7 @@ select.field-input {
 /* iOS Safari zoomer inn hele siden når et felt med skrift < 16px får fokus,
    og blir værende zoomet. På telefon-bredder løfter vi derfor alle felt til
    16px. Laptop/tablet (≥ 641px) beholder den kompakte 0.9rem-typografien.
-   De tre kompakte inline-selectene (medlemmer/filrad) har !text-xs og styres
+   De kompakte inline-selectene (medlemmer/filrad/besetning) har !text-xs og styres
    til 16px direkte i JSX (!text-base sm:!text-xs) siden et important-utility
    i Tailwinds lag slår en ulaget regel her. */
 @media (max-width: 640px) {
