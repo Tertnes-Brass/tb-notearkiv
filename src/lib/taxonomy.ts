@@ -21,7 +21,7 @@ export const SECTION_LABELS: Record<PartDef['section'], string> = {
   trombone: 'Tromboner',
   low: 'Grovmessing',
   perc: 'Slagverk',
-  score: 'Partitur',
+  score: 'Dirigent',
 }
 
 export const BRASS_BAND_PARTS: PartDef[] = [
