@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { type PartNode, buildChildrenMap, expandPartIds, leaderCanAssign } from './parts-tree'
+import {
+  type OrderedPart,
+  type PartNode,
+  buildChildrenMap,
+  buildDisplayOrder,
+  expandPartIds,
+  leaderCanAssign,
+  listSiblings,
+  reorderAfter,
+} from './parts-tree'
 
 const sorted = (xs: string[]) => [...xs].sort()
 
@@ -129,5 +138,109 @@ describe('expandPartIds / buildChildrenMap', () => {
     expect(sorted(expandPartIds(['percussion', 'percussion-1'], cm))).toEqual(
       sorted(['percussion', 'percussion-1']),
     )
+  })
+})
+
+describe('buildDisplayOrder / reorderAfter', () => {
+  // To blokker (cornets, percussion), en løs rot (horn) og partitur sist
+  const band: OrderedPart[] = [
+    { id: 'cornets', parentId: null, sortOrder: 10 },
+    { id: 'solo-cornet', parentId: 'cornets', sortOrder: 20 },
+    { id: 'second-cornet', parentId: 'cornets', sortOrder: 30 },
+    { id: 'horn', parentId: null, sortOrder: 40 },
+    { id: 'percussion', parentId: null, sortOrder: 50 },
+    { id: 'percussion-1', parentId: 'percussion', sortOrder: 60 },
+    { id: 'percussion-2', parentId: 'percussion', sortOrder: 70 },
+    { id: 'score', parentId: null, sortOrder: 80 },
+  ]
+  const bandOrder = band.map((r) => r.id)
+
+  it('buildDisplayOrder er identitet når blokkene allerede henger sammen', () => {
+    expect(buildDisplayOrder(band)).toEqual(bandOrder)
+  })
+
+  it('buildDisplayOrder reparerer løsrevet barn (legges rett etter forelderens øvrige barn)', () => {
+    const detached: OrderedPart[] = [
+      { id: 'percussion', parentId: null, sortOrder: 10 },
+      { id: 'horn', parentId: null, sortOrder: 20 },
+      { id: 'percussion-1', parentId: 'percussion', sortOrder: 30 }, // ligger etter horn i flat sortOrder
+    ]
+    expect(buildDisplayOrder(detached)).toEqual(['percussion', 'percussion-1', 'horn'])
+  })
+
+  it('rot-flytt tar med hele blokken (barna følger)', () => {
+    expect(reorderAfter(band, 'cornets', 'percussion')).toEqual([
+      'horn',
+      'percussion',
+      'percussion-1',
+      'percussion-2',
+      'cornets',
+      'solo-cornet',
+      'second-cornet',
+      'score',
+    ])
+  })
+
+  it('afterId=null flytter rot (med barn) øverst', () => {
+    expect(reorderAfter(band, 'percussion', null)).toEqual([
+      'percussion',
+      'percussion-1',
+      'percussion-2',
+      'cornets',
+      'solo-cornet',
+      'second-cornet',
+      'horn',
+      'score',
+    ])
+  })
+
+  it('barn flyttes innenfor forelderen — resten av listen står urørt', () => {
+    expect(reorderAfter(band, 'percussion-1', 'percussion-2')).toEqual([
+      'cornets',
+      'solo-cornet',
+      'second-cornet',
+      'horn',
+      'percussion',
+      'percussion-2',
+      'percussion-1',
+      'score',
+    ])
+  })
+
+  it('afterId=null flytter barn først i forelderen', () => {
+    expect(reorderAfter(band, 'second-cornet', null)).toEqual([
+      'cornets',
+      'second-cornet',
+      'solo-cornet',
+      'horn',
+      'percussion',
+      'percussion-1',
+      'percussion-2',
+      'score',
+    ])
+  })
+
+  it('ugyldig afterId kaster (feil nivå, annen forelder, ukjent, seg selv)', () => {
+    expect(() => reorderAfter(band, 'horn', 'solo-cornet')).toThrow(/øverste nivå/)
+    expect(() => reorderAfter(band, 'solo-cornet', 'horn')).toThrow(/søsken/)
+    expect(() => reorderAfter(band, 'solo-cornet', 'percussion-1')).toThrow(/søsken/)
+    expect(() => reorderAfter(band, 'horn', 'finnes-ikke')).toThrow(/[Uu]kjent/)
+    expect(() => reorderAfter(band, 'finnes-ikke', null)).toThrow(/[Uu]kjent/)
+    expect(() => reorderAfter(band, 'horn', 'horn')).toThrow(/seg selv/)
+  })
+
+  it('renummerering av resultatet er komplett og strengt stigende', () => {
+    const order = reorderAfter(band, 'cornets', 'percussion')
+    expect(sorted(order)).toEqual(sorted(bandOrder))
+    const renumbered = order.map((_, i) => (i + 1) * 10)
+    for (let i = 1; i < renumbered.length; i++) {
+      expect(renumbered[i]!).toBeGreaterThan(renumbered[i - 1]!)
+    }
+  })
+
+  it('listSiblings: røtter for rot, forelderens barn for barn, tomt for ukjent', () => {
+    expect(listSiblings(band, 'horn')).toEqual(['cornets', 'horn', 'percussion', 'score'])
+    expect(listSiblings(band, 'percussion-2')).toEqual(['percussion-1', 'percussion-2'])
+    expect(listSiblings(band, 'finnes-ikke')).toEqual([])
   })
 })

@@ -74,3 +74,92 @@ export function leaderCanAssign(
   if (currentPartIds.length === 0) return false
   return currentPartIds.every((id) => scope.has(id)) && requestedPartIds.every((id) => scope.has(id))
 }
+
+// ---------- Visningsrekkefølge og flytting ----------
+
+export type OrderedPart = { id: string; parentId: string | null; sortOrder: number }
+
+/**
+ * Et barn i VISNINGS-forstand: forelderen finnes og er selv på rot-nivå.
+ * Selv-forelder, ukjent forelder eller forelder-som-selv-er-barn (umulig med
+ * invariantene, men mulig i feilkonfigurert data) behandles som rot, så alle
+ * rader alltid er med i rekkefølgen og beregningen aldri kan løkke.
+ */
+function isChildRow(r: OrderedPart, byId: Map<string, OrderedPart>): boolean {
+  if (r.parentId == null) return false
+  const parent = byId.get(r.parentId)
+  return parent != null && parent.id !== r.id && parent.parentId == null
+}
+
+/** Blokker i visningsrekkefølge: [rot-id, ...barn-id-er], røtter og barn hver for seg i sortOrder-rekkefølge. */
+function buildBlocks(rows: OrderedPart[]): string[][] {
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const bySort = [...rows].sort((a, b) => a.sortOrder - b.sortOrder)
+  const children = new Map<string, string[]>()
+  for (const r of bySort) {
+    if (!isChildRow(r, byId)) continue
+    const list = children.get(r.parentId!) ?? []
+    list.push(r.id)
+    children.set(r.parentId!, list)
+  }
+  return bySort.filter((r) => !isChildRow(r, byId)).map((r) => [r.id, ...(children.get(r.id) ?? [])])
+}
+
+/**
+ * Visningsrekkefølgen som BLOKKER: røtter i sortOrder-rekkefølge, hver rot
+ * umiddelbart etterfulgt av egne barn i sortOrder-rekkefølge. Reparerer
+ * dermed historisk «løsrevne» barn hvis sortOrder havnet utenfor blokken.
+ */
+export function buildDisplayOrder(rows: OrderedPart[]): string[] {
+  return buildBlocks(rows).flat()
+}
+
+/**
+ * Ordnede «søsken»-id-er for en stemme: alle røttene hvis den er rot, ellers
+ * forelderens barn. Ukjent id gir tom liste.
+ */
+export function listSiblings(rows: OrderedPart[], id: string): string[] {
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const me = byId.get(id)
+  if (!me) return []
+  const blocks = buildBlocks(rows)
+  if (isChildRow(me, byId)) return blocks.find((b) => b[0] === me.parentId)?.slice(1) ?? []
+  return blocks.map((b) => b[0]!)
+}
+
+/**
+ * Ny komplett id-rekkefølge etter å ha flyttet `id` rett etter `afterId`
+ * (null = først blant sine søsken). En rot flyttes som HEL blokk (med barna)
+ * og bare etter en annen rot; et barn flyttes bare innenfor sin forelder.
+ * Kaster ved ugyldig mål — serveren stoler ikke på at UI-et begrenser options.
+ */
+export function reorderAfter(rows: OrderedPart[], id: string, afterId: string | null): string[] {
+  if (id === afterId) throw new Error('En stemme kan ikke flyttes etter seg selv')
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const me = byId.get(id)
+  if (!me) throw new Error('Ukjent stemme')
+  const target = afterId == null ? null : byId.get(afterId)
+  if (afterId != null && !target) throw new Error('Ukjent stemme å flytte etter')
+
+  const blocks = buildBlocks(rows)
+
+  if (isChildRow(me, byId)) {
+    if (target && !(isChildRow(target, byId) && target.parentId === me.parentId)) {
+      throw new Error('En understemme kan bare flyttes etter et søsken med samme forelder')
+    }
+    const block = blocks.find((b) => b[0] === me.parentId)!
+    const siblings = block.slice(1).filter((s) => s !== id)
+    siblings.splice(target ? siblings.indexOf(target.id) + 1 : 0, 0, id)
+    block.splice(1, block.length - 1, ...siblings)
+  } else {
+    if (target && isChildRow(target, byId)) {
+      throw new Error('En stemme på øverste nivå kan bare flyttes etter en annen stemme på øverste nivå')
+    }
+    const [block] = blocks.splice(
+      blocks.findIndex((b) => b[0] === id),
+      1,
+    )
+    blocks.splice(target ? blocks.findIndex((b) => b[0] === target.id) + 1 : 0, 0, block!)
+  }
+  return blocks.flat()
+}

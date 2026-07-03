@@ -10,6 +10,7 @@ import {
   deleteRole,
   getSettingsData,
   movePart,
+  movePartTo,
   renameRole,
   setRolePermission,
   updatePart,
@@ -83,67 +84,95 @@ function PartsSection({ data }: { data: Data }) {
 
       <div className="sheet overflow-hidden">
         <ul className="divide-y divide-[var(--line)]">
-          {data.parts.map((p, i) => (
-            <li
-              key={p.id}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5"
-              style={p.parentId ? { paddingLeft: '2.5rem' } : undefined}
-            >
-              <span className="flex shrink-0 flex-col">
-                <button
-                  className="grid h-8 w-8 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none sm:h-5 sm:w-6"
-                  disabled={busy === p.id || i === 0}
-                  aria-label="Flytt opp"
-                  onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'up' } }))}
-                >
-                  <Chevron dir="up" />
-                </button>
-                <button
-                  className="grid h-8 w-8 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none sm:h-5 sm:w-6"
-                  disabled={busy === p.id || i === data.parts.length - 1}
-                  aria-label="Flytt ned"
-                  onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'down' } }))}
-                >
-                  <Chevron dir="down" />
-                </button>
-              </span>
-
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-[0.95rem] font-semibold text-ink">{p.nameNo}</span>
-                  <span className="font-mono text-[0.66rem] uppercase tracking-[0.1em] text-ink-faint">{p.nameEn}</span>
+          {data.parts.map((p) => {
+            // Søsken = rader på samme nivå: rot-stemmer seg imellom, understemmer innenfor forelderen
+            const peers = data.parts.filter((x) => (x.parentId ?? null) === (p.parentId ?? null))
+            const peerIdx = peers.findIndex((x) => x.id === p.id)
+            return (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5"
+                style={p.parentId ? { paddingLeft: '2.5rem' } : undefined}
+              >
+                <span className="flex shrink-0 flex-col">
+                  <button
+                    className="grid h-8 w-8 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none sm:h-5 sm:w-6"
+                    disabled={busy === p.id || peerIdx <= 0}
+                    aria-label="Flytt opp"
+                    onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'up' } }))}
+                  >
+                    <Chevron dir="up" />
+                  </button>
+                  <button
+                    className="grid h-8 w-8 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink disabled:opacity-25 disabled:pointer-events-none sm:h-5 sm:w-6"
+                    disabled={busy === p.id || peerIdx === peers.length - 1}
+                    aria-label="Flytt ned"
+                    onClick={() => act(p.id, () => movePart({ data: { id: p.id, direction: 'down' } }))}
+                  >
+                    <Chevron dir="down" />
+                  </button>
                 </span>
-                <span className="mt-0.5 block truncate font-mono text-[0.64rem] text-ink-faint">
-                  {p.parentId ? `↳ ${partName.get(p.parentId) ?? '?'} · ` : ''}
-                  {SECTION_LABELS[p.section as keyof typeof SECTION_LABELS] ?? p.section}
-                  {p.aliases.length > 0 ? ` · alias: ${p.aliases.join(', ')}` : ' · ingen alias'}
-                </span>
-              </span>
 
-              {p.inUse > 0 && <Stamp>{p.inUse} i bruk</Stamp>}
-              <span className="flex shrink-0 items-center gap-1">
-                <button
-                  onClick={() => setEditing(p)}
-                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
-                >
-                  Rediger
-                </button>
-                <button
-                  disabled={busy === p.id}
-                  onClick={() => {
-                    if (p.fileCount > 0) {
-                      toast(`«${p.nameNo}» er i bruk på ${p.fileCount} fil(er) og kan ikke slettes`, 'error')
-                      return
-                    }
-                    act(p.id, () => deletePart({ data: { id: p.id } }))
-                  }}
-                  className="cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-medium text-danger/80 transition-colors hover:bg-danger/10 hover:text-danger"
-                >
-                  Slett
-                </button>
-              </span>
-            </li>
-          ))}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-[0.95rem] font-semibold text-ink">{p.nameNo}</span>
+                    <span className="font-mono text-[0.66rem] uppercase tracking-[0.1em] text-ink-faint">{p.nameEn}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate font-mono text-[0.64rem] text-ink-faint">
+                    {p.parentId ? `↳ ${partName.get(p.parentId) ?? '?'} · ` : ''}
+                    {SECTION_LABELS[p.section as keyof typeof SECTION_LABELS] ?? p.section}
+                    {p.aliases.length > 0 ? ` · alias: ${p.aliases.join(', ')}` : ' · ingen alias'}
+                  </span>
+                </span>
+
+                {p.inUse > 0 && <Stamp>{p.inUse} i bruk</Stamp>}
+                <span className="flex w-full min-w-0 items-center gap-1 sm:w-auto sm:shrink-0">
+                  <select
+                    className="field-input min-w-0 flex-1 !py-2 !text-base sm:!w-auto sm:!flex-none sm:!py-1.5 sm:!text-xs"
+                    value=""
+                    disabled={busy === p.id || peers.length <= 1}
+                    aria-label={`Flytt «${p.nameNo}» til`}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (!v) return
+                      act(p.id, () => movePartTo({ data: { id: p.id, afterId: v === '__first' ? null : v } }))
+                    }}
+                  >
+                    <option value="" disabled>
+                      Flytt til…
+                    </option>
+                    <option value="__first">{p.parentId ? `Først i «${partName.get(p.parentId) ?? '?'}»` : 'Øverst'}</option>
+                    {peers
+                      .filter((x) => x.id !== p.id)
+                      .map((x) => (
+                        <option key={x.id} value={x.id}>
+                          Etter «{x.nameNo}»
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    onClick={() => setEditing(p)}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
+                  >
+                    Rediger
+                  </button>
+                  <button
+                    disabled={busy === p.id}
+                    onClick={() => {
+                      if (p.fileCount > 0) {
+                        toast(`«${p.nameNo}» er i bruk på ${p.fileCount} fil(er) og kan ikke slettes`, 'error')
+                        return
+                      }
+                      act(p.id, () => deletePart({ data: { id: p.id } }))
+                    }}
+                    className="cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-medium text-danger/80 transition-colors hover:bg-danger/10 hover:text-danger"
+                  >
+                    Slett
+                  </button>
+                </span>
+              </li>
+            )
+          })}
         </ul>
       </div>
 

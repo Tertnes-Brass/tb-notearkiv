@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from '../db'
 import { invitations, memberProfiles, parts, rolePermissions, roles, userParts, workFiles } from '../db/schema'
 import { requirePermission } from './access'
+import { buildDisplayOrder, listSiblings, reorderAfter } from './parts-tree'
 
 const SETTINGS_PERMISSION = 'settings.manage'
 
@@ -148,6 +149,11 @@ export const createPart = createServerFn({ method: 'POST' })
       parentId: data.parentId ?? null,
       aliases: JSON.stringify(data.aliases.map((a) => a.trim()).filter(Boolean)),
     })
+    // Ny understemme skal legge seg rett under forelderen, ikke nederst i listen.
+    if (data.parentId) {
+      const rows = await partRows()
+      await renumberParts(buildDisplayOrder(rows), rows)
+    }
     return { id }
   })
 
@@ -156,7 +162,9 @@ export const updatePart = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await requirePermission(SETTINGS_PERMISSION)
     await assertValidParent(data.parentId, data.id, data.section)
-    await db()
+    const d = db()
+    const prev = (await d.select({ parentId: parts.parentId }).from(parts).where(eq(parts.id, data.id)).limit(1))[0]
+    await d
       .update(parts)
       .set({
         nameNo: data.nameNo.trim(),
@@ -166,6 +174,11 @@ export const updatePart = createServerFn({ method: 'POST' })
         aliases: JSON.stringify(data.aliases.map((a) => a.trim()).filter(Boolean)),
       })
       .where(eq(parts.id, data.id))
+    // Ved re-parenting: renummerer så stemmen legger seg rett under (ny) forelder.
+    if (prev && (data.parentId ?? null) !== prev.parentId) {
+      const rows = await partRows()
+      await renumberParts(buildDisplayOrder(rows), rows)
+    }
     return { ok: true }
   })
 
@@ -193,19 +206,46 @@ export const deletePart = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+function partRows() {
+  return db()
+    .select({ id: parts.id, parentId: parts.parentId, sortOrder: parts.sortOrder })
+    .from(parts)
+    .orderBy(asc(parts.sortOrder))
+}
+
+/** Skriver ny rekkefølge som sortOrder = (posisjon + 1) * 10 — atomisk via batch. */
+async function renumberParts(order: string[], rows: Array<{ id: string; sortOrder: number }>) {
+  const d = db()
+  const current = new Map(rows.map((r) => [r.id, r.sortOrder]))
+  const updates = order
+    .map((id, i) => ({ id, sortOrder: (i + 1) * 10 }))
+    .filter((u) => current.get(u.id) !== u.sortOrder)
+    .map((u) => d.update(parts).set({ sortOrder: u.sortOrder }).where(eq(parts.id, u.id)))
+  if (updates.length > 0) await d.batch(updates as [(typeof updates)[number], ...typeof updates])
+}
+
+/** Ett hakk opp/ned blant søsknene — en rot hopper over hele naboblokken, barna følger med. */
 export const movePart = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string(), direction: z.enum(['up', 'down']) }))
   .handler(async ({ data }) => {
     await requirePermission(SETTINGS_PERMISSION)
-    const d = db()
-    const rows = await d.select({ id: parts.id, sortOrder: parts.sortOrder }).from(parts).orderBy(asc(parts.sortOrder))
-    const idx = rows.findIndex((r) => r.id === data.id)
-    const swapWith = data.direction === 'up' ? idx - 1 : idx + 1
-    if (idx === -1 || swapWith < 0 || swapWith >= rows.length) return { ok: true }
-    const a = rows[idx]!
-    const b = rows[swapWith]!
-    await d.update(parts).set({ sortOrder: b.sortOrder }).where(eq(parts.id, a.id))
-    await d.update(parts).set({ sortOrder: a.sortOrder }).where(eq(parts.id, b.id))
+    const rows = await partRows()
+    const peers = listSiblings(rows, data.id)
+    const idx = peers.indexOf(data.id)
+    const targetIdx = data.direction === 'up' ? idx - 1 : idx + 1
+    if (idx === -1 || targetIdx < 0 || targetIdx >= peers.length) return { ok: true }
+    const afterId = data.direction === 'up' ? (peers[idx - 2] ?? null) : peers[idx + 1]!
+    await renumberParts(reorderAfter(rows, data.id, afterId), rows)
+    return { ok: true }
+  })
+
+export const movePartTo = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string(), afterId: z.string().nullable() }))
+  .handler(async ({ data }) => {
+    await requirePermission(SETTINGS_PERMISSION)
+    const rows = await partRows()
+    // reorderAfter kaster ved ugyldig mål (feil nivå / ukjent id)
+    await renumberParts(reorderAfter(rows, data.id, data.afterId), rows)
     return { ok: true }
   })
 
