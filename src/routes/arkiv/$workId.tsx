@@ -381,6 +381,7 @@ function FileRow({
           </a>
           <a
             href={`/api/files/${file.id}?download=1`}
+            download={file.fileName}
             className="inline-flex items-center rounded-lg px-2.5 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-paper-sunken hover:text-ink"
           >
             Last ned
