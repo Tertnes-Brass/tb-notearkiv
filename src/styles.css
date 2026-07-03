@@ -296,6 +296,27 @@ dialog.sheet-dialog::backdrop {
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* Bred variant (erstatter !max-w-utility i ui.tsx) */
+dialog.sheet-dialog.sheet-dialog-wide {
+  max-width: min(94vw, 760px);
+}
+
+/* Nær-fullskjerms bunn-sheet på telefon for modaler som trenger plass
+   (avspilling av opptak/video): full bredde, pinnet mot bunnen. */
+@media (max-width: 640px) {
+  dialog.sheet-dialog.sheet-dialog-mobile-full {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 18px 18px 0 0;
+    min-height: 60dvh;
+    max-height: 94dvh;
+  }
+}
+
 /* ---------- Skjema ---------- */
 .field-input {
   width: 100%;
