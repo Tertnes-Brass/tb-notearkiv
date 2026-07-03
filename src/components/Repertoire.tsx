@@ -65,7 +65,7 @@ function ListenButton({ item }: { item: ProjectWorkDetail }) {
       >
         <PlayIcon /> Lytt
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title={item.title} kicker="Lytteeksempler" wide={!!embeddable}>
+      <Modal open={open} onClose={() => setOpen(false)} title={item.title} kicker="Lytteeksempler" wide={!!embeddable} mobileFull>
         <div className="space-y-4">
           {embeddable && (
             <div className="overflow-hidden rounded-xl border border-line">

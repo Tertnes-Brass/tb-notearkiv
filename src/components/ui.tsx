@@ -114,6 +114,7 @@ export function Modal({
   kicker,
   children,
   wide,
+  mobileFull,
 }: {
   open: boolean
   onClose: () => void
@@ -121,6 +122,7 @@ export function Modal({
   kicker?: string
   children: ReactNode
   wide?: boolean
+  mobileFull?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
 
@@ -134,7 +136,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={`sheet-dialog ${wide ? '!max-w-[min(94vw,760px)]' : ''}`}
+      className={`sheet-dialog ${wide ? 'sheet-dialog-wide' : ''} ${mobileFull ? 'sheet-dialog-mobile-full' : ''}`}
       onClose={onClose}
       onClick={(e) => {
         // klikk på backdrop lukker
