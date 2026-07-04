@@ -10,12 +10,20 @@ faktisk nedlasting), ikke bare filtrering.
 > reelle forsvaret. Alt annet (getWork, assembleRepertoire, getShareView, UI) er
 > kosmetikk og må aldri bli eneste skranke.
 
+> **Status per 28. juni 2026:** Fase 4 er deployet til prod (versjon `0e016750`)
+> og den harde fil-gaten er **aktiv**. Migrasjonen `0001_nested_parts` er
+> applisert `--remote`, og `archive.viewAll` er seedet til `archivist` +
+> `conductor` i prod. Samme dag ble det besluttet å **ikke bygge stemme-treet**:
+> strukturen forblir flat — tilgang på stemme-nivå er godt nok — og
+> `parent_id`-maskineriet ligger dormant.
+
 ## 1. Valgt modell
 
 - **Grunnstamme:** én nullable self-FK `parts.parent_id` + ekspansjon ved oppslag
   i `currentUser()`. Ingen closure-tabell. `parent_id = NULL` på alle eksisterende
   rader ⇒ ekspansjon = identitet = dagens flate oppførsel inntil noen aktivt
-  bygger et tre.
+  bygger et tre. *Besluttet 28. juni 2026: treet bygges ikke — strukturen forblir
+  flat, og maskineriet ligger dormant til et eventuelt fremtidig behov.*
 - **Seksjonsleder:** ny scoped evne `members.manage.section` + scope-tabell
   `section_leaders` + `canManageMemberParts(me, targetUserId, partIds)` med streng
   `⊆`-validering (`.every()`) på HVER innsendt partId.
@@ -64,9 +72,10 @@ oppstartssjekk (fase 3) som fail-faster hvis privilegerte roller mangler
   (i tillegg til `archive.viewAll`). Siden seedede `archivist`+`conductor` har
   `works.manage`, kan de aldri låses ute selv om `archive.viewAll` skulle mangle i
   prod. `archive.viewAll` er dessuten synlig i rolle-matrisen så egendefinerte
-  «se alt»-roller kan få den. Gjenstår som DRIFT (ikke kode): bygg treet i
-  `/innstillinger`, sett `section_leaders` i `/medlemmer`, varsle besetningen.
-- **Fase 4 — Hard fil-gate (FERDIG i kode, IKKE deployet/aktivert ennå):**
+  «se alt»-roller kan få den. Drift-status: `archive.viewAll` er seedet i prod,
+  og treet bygges **ikke** (flat struktur besluttet 28. juni 2026). Eventuelle
+  `section_leaders` settes ved behov i `/medlemmer`.
+- **Fase 4 — Hard fil-gate (FERDIG — deployet til prod 28. juni 2026, AKTIV):**
   `$fileId.ts` bruker nå felles `memberCanAccessFile`/`shareAllows`
   (`src/server/file-access.ts`); `getWork`/`assembleRepertoire` filtrerer
   part-filer server-side via `memberCanSeeFile`; `getShareView` bruker samme
@@ -75,9 +84,10 @@ oppstartssjekk (fase 3) som fail-faster hvis privilegerte roller mangler
   scoped stemme-dropdown i `/medlemmer`. **Self-service fjernet:** `updateMemberParts`
   tillater ikke lenger `me.id === userId` — kun global `members.manage` eller
   seksjonsleder; `/medlemmer` viser stemme skrivebeskyttet for andre. 13 enhetstester
-  for `file-access`. Aktiveres når branchen merges + deployes (etter at treet er
-  bygd, `archive.viewAll` bekreftet i prod og besetningen er varslet) +
-  prod-migrasjon `--remote`.
+  for `file-access`. Deployet til prod 28. juni 2026 (versjon `0e016750`);
+  migrasjonen `0001_nested_parts` er applisert `--remote`, og `archive.viewAll`
+  er bekreftet seedet til `archivist` + `conductor` i prod. Treet ble besluttet
+  ikke bygd (flat struktur), så gaten håndhever tilgang på stemme-nivå.
 
 **Rollback:** drop `section_leaders`, ignorer `parent_id` (NULL = ingen effekt),
 reverter `$fileId.ts` + serverfunksjons-filtre. Ingen destruktive steg.
@@ -141,7 +151,11 @@ reverter `$fileId.ts` + serverfunksjons-filtre. Ingen destruktive steg.
 | Vikar (share, fått `percussion-1`) | **Nei** | Ja for 1 | Nei | **Ja** | **Nei** |
 | Uinnlogget uten token | 401 | 401 | 401 | 401 | 401 |
 
-## 6. Åpne produktvalg — krever beslutning før fase 4
+## 6. Produktvalg før fase 4 (avgjort — historikk)
+
+Alle valg ble avgjort før deploy, i tråd med de anbefalte alternativene (se
+fase 4-beskrivelsen og kanttilfelle-tabellen). For punkt 6 ble det i tillegg
+besluttet 28. juni 2026 å ikke bygge treet i det hele tatt (flat struktur).
 
 1. **Omfang:** gate kun fil-nedlasting (medlem ser fortsatt verksliste +
    metadata) — *anbefalt* — eller skjul også verk hen ikke har stemme i?
