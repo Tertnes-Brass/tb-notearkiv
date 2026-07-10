@@ -112,14 +112,18 @@ type NavItem = {
 const BASE_NAV: NavItem[] = [
   { to: '/', label: 'Hjem', exact: true },
   { to: '/prosjekter', label: 'Prosjekter' },
-  { to: '/arkiv', label: 'Arkiv' },
   { to: '/medlemmer', label: 'Medlemmer' },
 ]
 
 export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
   const canManageSettings = me.permissions.includes('*') || me.permissions.includes('settings.manage')
   const canViewDownloads = me.permissions.includes('*') || me.permissions.includes('downloads.view')
+  const canBrowseArchive =
+    me.permissions.includes('*') ||
+    me.permissions.includes('archive.viewAll') ||
+    me.permissions.includes('works.manage')
   const NAV: NavItem[] = [...BASE_NAV]
+  if (canBrowseArchive) NAV.splice(2, 0, { to: '/arkiv', label: 'Arkiv' })
   if (canViewDownloads) NAV.push({ to: '/innstillinger/nedlastinger', label: 'Nedlastinger' })
   // exact, ellers markeres Innstillinger som aktiv også på /innstillinger/nedlastinger
   if (canManageSettings) NAV.push({ to: '/innstillinger', label: 'Innstillinger', exact: true })

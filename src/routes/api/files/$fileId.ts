@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { env } from 'cloudflare:workers'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte } from 'drizzle-orm'
 import { db } from '../../../db'
-import { downloadLog, projectWorks, shareLinks, workFiles } from '../../../db/schema'
+import { downloadLog, projects, projectWorks, shareLinks, workFiles } from '../../../db/schema'
 import { newId, sha256Hex } from '../../../lib/id'
-import { currentUser, hasPermission } from '../../../server/access'
+import { currentUser, hasFullArchiveAccess, hasPermission } from '../../../server/access'
 import { memberCanAccessFile, shareAllows } from '../../../server/file-access'
 
 function contentTypeFor(fileName: string): string {
@@ -36,15 +36,36 @@ export const Route = createFileRoute('/api/files/$fileId')({
         const me = await currentUser()
         if (me) {
           userId = me.id
+          const canViewAll = hasFullArchiveAccess(me)
+          let inAccessibleProject = canViewAll
+          if (!canViewAll) {
+            const today = new Date().toISOString().slice(0, 10)
+            const accessibleProject = (
+              await d
+                .select({ projectId: projectWorks.projectId })
+                .from(projectWorks)
+                .innerJoin(projects, eq(projectWorks.projectId, projects.id))
+                .where(
+                  and(
+                    eq(projectWorks.workId, file.workId),
+                    eq(projects.isPublished, true),
+                    gte(projects.eventDate, today),
+                  ),
+                )
+                .limit(1)
+            )[0]
+            inAccessibleProject = !!accessibleProject
+          }
           // Hard tilgangsstyring: stemmefiler krever at stemma er i brukerens
-          // effektive stemmer (forelder ⇒ barn), partitur krever scores.view,
-          // uplassert krever fullt arkivinnsyn. works.manage er fail-safe så
-          // arkivforvaltere aldri låses ute. Håndheves server-side her — den
-          // ENESTE reelle porten — ikke bare i UI-et.
+          // effektive stemmer (forelder ⇒ barn) og at verket er i et publisert,
+          // kommende prosjekt. Partitur krever scores.view. Fullt arkivinnsyn
+          // omgår prosjektkravet. Håndheves server-side her — den ENESTE reelle
+          // porten — ikke bare i UI-et.
           const ok = memberCanAccessFile(file, {
             effectivePartIds: me.effectivePartIds,
             canViewScore: hasPermission(me, 'scores.view'),
-            canViewAll: hasPermission(me, 'archive.viewAll') || hasPermission(me, 'works.manage'),
+            canViewAll,
+            inAccessibleProject,
           })
           if (!ok) return new Response('Ingen tilgang til denne filen', { status: 403 })
         } else if (shareToken) {

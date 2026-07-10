@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { db, type Db } from '../db'
 import { parts, projectWorks, projects, seasons, workFiles, workLinks, works } from '../db/schema'
 import { newId } from '../lib/id'
-import { hasPermission, requireMe, requirePermission } from './access'
+import { hasFullArchiveAccess, hasPermission, requireMe, requirePermission } from './access'
 
 export type ProjectWorkDetail = {
   workId: string
@@ -93,6 +93,7 @@ export const getHome = createServerFn().handler(async () => {
   const me = await requireMe()
   const d = db()
   const today = new Date().toISOString().slice(0, 10)
+  const canBrowseArchive = hasFullArchiveAccess(me)
 
   const upcoming = await d
     .select()
@@ -105,23 +106,27 @@ export const getHome = createServerFn().handler(async () => {
     ? await assembleRepertoire(d, next.id, {
         effectivePartIds: me.effectivePartIds,
         includeScore: hasPermission(me, 'scores.view'),
-        canViewAll: hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll'),
+        canViewAll: canBrowseArchive,
       })
     : []
 
-  const [workCount, fileCount, latestWorks] = await Promise.all([
-    d.select({ n: sql<number>`count(*)` }).from(works),
-    d.select({ n: sql<number>`count(*)` }).from(workFiles),
-    d.select().from(works).orderBy(desc(works.createdAt)).limit(3),
-  ])
+  const archive = canBrowseArchive
+    ? await Promise.all([
+        d.select({ n: sql<number>`count(*)` }).from(works),
+        d.select({ n: sql<number>`count(*)` }).from(workFiles),
+        d.select().from(works).orderBy(desc(works.createdAt)).limit(3),
+      ]).then(([workCount, fileCount, latestWorks]) => ({
+        stats: { works: workCount[0]?.n ?? 0, files: fileCount[0]?.n ?? 0 },
+        latestWorks,
+      }))
+    : null
 
   return {
     me: { name: me.name, parts: me.parts, roleName: me.roleName },
     nextProject: next,
     repertoire,
     upcoming: upcoming.slice(1),
-    stats: { works: workCount[0]?.n ?? 0, files: fileCount[0]?.n ?? 0 },
-    latestWorks,
+    archive,
   }
 })
 
@@ -129,6 +134,8 @@ export const listProjects = createServerFn().handler(async () => {
   const me = await requireMe()
   const d = db()
   const canManage = hasPermission(me, 'projects.manage')
+  const canBrowseArchive = hasFullArchiveAccess(me)
+  const today = new Date().toISOString().slice(0, 10)
 
   const rows = await d
     .select({
@@ -143,7 +150,13 @@ export const listProjects = createServerFn().handler(async () => {
     })
     .from(projects)
     .leftJoin(seasons, eq(projects.seasonId, seasons.id))
-    .where(canManage ? undefined : eq(projects.isPublished, true))
+    .where(
+      canManage
+        ? undefined
+        : canBrowseArchive
+          ? eq(projects.isPublished, true)
+          : and(eq(projects.isPublished, true), gte(projects.eventDate, today)),
+    )
     .orderBy(desc(projects.eventDate))
 
   return { projects: rows, canManage }
@@ -159,11 +172,21 @@ export const getProject = createServerFn()
 
     const canManage = hasPermission(me, 'projects.manage')
     if (!project.isPublished && !canManage) throw new Error('Prosjektet er ikke publisert ennå')
+    const canBrowseArchive = hasFullArchiveAccess(me)
+    const today = new Date().toISOString().slice(0, 10)
+    if (
+      project.isPublished &&
+      (!project.eventDate || project.eventDate < today) &&
+      !canManage &&
+      !canBrowseArchive
+    ) {
+      throw new Error('Prosjektet er ikke lenger tilgjengelig')
+    }
 
     const repertoire = await assembleRepertoire(d, project.id, {
       effectivePartIds: me.effectivePartIds,
       includeScore: hasPermission(me, 'scores.view'),
-      canViewAll: hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll'),
+      canViewAll: canBrowseArchive,
     })
 
     return {

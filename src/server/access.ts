@@ -78,6 +78,11 @@ export function hasPermission(me: Me | null, permission: string): boolean {
   return me.permissions.includes('*') || me.permissions.includes(permission)
 }
 
+/** Fullt arkivinnsyn, uavhengig av om det kommer fra lesing eller forvaltning. */
+export function hasFullArchiveAccess(me: Me | null): boolean {
+  return hasPermission(me, 'archive.viewAll') || hasPermission(me, 'works.manage')
+}
+
 /**
  * Kan `me` endre stemmene til `targetUserId` til `requestedPartIds`?
  * Global `members.manage` ⇒ ja. Ellers må `me` ha `members.manage.section` og

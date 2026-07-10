@@ -95,7 +95,7 @@ function HomePage() {
         </section>
       )}
 
-      <div className="grid gap-10 md:grid-cols-2">
+      <div className={data.archive ? 'grid gap-10 md:grid-cols-2' : 'max-w-2xl'}>
         <section className="rise" style={{ animationDelay: '120ms' }}>
           <SectionHeading kicker="Lenger frem" title="Kommende" className="mb-4" />
           {data.upcoming.length === 0 ? (
@@ -126,38 +126,40 @@ function HomePage() {
           )}
         </section>
 
-        <section className="rise" style={{ animationDelay: '200ms' }}>
-          <SectionHeading
-            kicker="Arkivet"
-            title="Nytt i hyllene"
-            className="mb-4"
-            action={
-              <Link to="/arkiv" className="link-brass text-sm">
-                Hele arkivet →
-              </Link>
-            }
-          />
-          <ul className="sheet divide-y divide-[var(--line)] overflow-hidden">
-            {data.latestWorks.map((w) => (
-              <li key={w.id}>
-                <Link
-                  to="/arkiv/$workId"
-                  params={{ workId: w.id }}
-                  className="link-quiet flex items-baseline justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-paper-sunken/50"
-                >
-                  <span className="min-w-0">
-                    <span className="display-title block truncate text-[1.02rem] font-semibold">{w.title}</span>
-                    <span className="block text-xs text-ink-soft">{w.composer ?? '—'}</span>
-                  </span>
-                  {w.genre && <Stamp>{w.genre}</Stamp>}
+        {data.archive && (
+          <section className="rise" style={{ animationDelay: '200ms' }}>
+            <SectionHeading
+              kicker="Arkivet"
+              title="Nytt i hyllene"
+              className="mb-4"
+              action={
+                <Link to="/arkiv" className="link-brass text-sm">
+                  Hele arkivet →
                 </Link>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 font-mono text-[0.66rem] uppercase tracking-[0.16em] text-ink-faint">
-            {data.stats.works} verk · {data.stats.files} filer i arkivet
-          </p>
-        </section>
+              }
+            />
+            <ul className="sheet divide-y divide-[var(--line)] overflow-hidden">
+              {data.archive.latestWorks.map((w) => (
+                <li key={w.id}>
+                  <Link
+                    to="/arkiv/$workId"
+                    params={{ workId: w.id }}
+                    className="link-quiet flex items-baseline justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-paper-sunken/50"
+                  >
+                    <span className="min-w-0">
+                      <span className="display-title block truncate text-[1.02rem] font-semibold">{w.title}</span>
+                      <span className="block text-xs text-ink-soft">{w.composer ?? '—'}</span>
+                    </span>
+                    {w.genre && <Stamp>{w.genre}</Stamp>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 font-mono text-[0.66rem] uppercase tracking-[0.16em] text-ink-faint">
+              {data.archive.stats.works} verk · {data.archive.stats.files} filer i arkivet
+            </p>
+          </section>
+        )}
       </div>
     </div>
   )

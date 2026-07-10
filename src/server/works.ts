@@ -6,13 +6,13 @@ import { db } from '../db'
 import { parts, projectWorks, projects, workFiles, workLinks, works } from '../db/schema'
 import { newId } from '../lib/id'
 import { guessPartFromFilename } from '../lib/taxonomy'
-import { hasPermission, requireMe, requirePermission } from './access'
-import { memberCanSeeFile } from './file-access'
+import { hasFullArchiveAccess, hasPermission, requireMe, requirePermission } from './access'
 
 export const listWorks = createServerFn()
   .validator(z.object({ q: z.string().optional() }).optional())
   .handler(async ({ data }) => {
     const me = await requireMe()
+    if (!hasFullArchiveAccess(me)) throw new Error('Du har ikke tilgang til hele arkivet')
     const d = db()
     const q = data?.q?.trim()
 
@@ -57,6 +57,7 @@ export const getWork = createServerFn()
   .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const me = await requireMe()
+    if (!hasFullArchiveAccess(me)) throw new Error('Du har ikke tilgang til hele arkivet')
     const d = db()
 
     const workRow = (await d.select().from(works).where(eq(works.id, data.id)).limit(1))[0]
@@ -92,22 +93,9 @@ export const getWork = createServerFn()
 
     files.sort((a, b) => (a.partSort ?? 900) - (b.partSort ?? 900))
 
-    // Hard tilgang: et vanlig medlem ser bare egne stemme-filer (+ partitur/lyd
-    // som metadata); andres stemmer og uplassert skjules. Verket og metadata er
-    // fortsatt synlig. Filtreres server-side, ikke bare i UI.
-    const canViewAll = hasPermission(me, 'works.manage') || hasPermission(me, 'archive.viewAll')
-    const visibleFiles = canViewAll
-      ? files
-      : files.filter((f) =>
-          memberCanSeeFile(
-            { kind: f.kind, partId: f.partId },
-            { effectivePartIds: me.effectivePartIds, canViewScore: hasPermission(me, 'scores.view'), canViewAll: false },
-          ),
-        )
-
     return {
       work: workRow,
-      files: visibleFiles,
+      files,
       links,
       allParts,
       usedIn,
