@@ -4,11 +4,27 @@ import { type AccessCtx, memberCanAccessFile, memberCanSeeFile, shareAllows } fr
 const file = (kind: string, partId: string | null = null) => ({ kind, partId })
 
 // Vanlig medlem med Slagverk 1, kan se partitur, ikke fullt arkivinnsyn.
-const member: AccessCtx = { effectivePartIds: ['percussion-1'], canViewScore: true, canViewAll: false }
+const member: AccessCtx = {
+  effectivePartIds: ['percussion-1'],
+  canViewScore: true,
+  canViewAll: false,
+  inAccessibleProject: true,
+}
 // Stab/dirigent: fullt arkivinnsyn.
-const viewAll: AccessCtx = { effectivePartIds: [], canViewScore: true, canViewAll: true }
+const viewAll: AccessCtx = {
+  effectivePartIds: [],
+  canViewScore: true,
+  canViewAll: true,
+  inAccessibleProject: false,
+}
 // Medlem uten partitur-rett.
-const noScore: AccessCtx = { effectivePartIds: ['percussion-1'], canViewScore: false, canViewAll: false }
+const noScore: AccessCtx = {
+  effectivePartIds: ['percussion-1'],
+  canViewScore: false,
+  canViewAll: false,
+  inAccessibleProject: true,
+}
+const outsideProject: AccessCtx = { ...member, inAccessibleProject: false }
 
 describe('memberCanAccessFile (nedlasting)', () => {
   it('egen stemme: ja', () => {
@@ -32,8 +48,13 @@ describe('memberCanAccessFile (nedlasting)', () => {
   it('fullt arkivinnsyn når andres stemme og uplassert', () => {
     expect(memberCanAccessFile(file('part', 'solo-cornet'), viewAll)).toBe(true)
   })
+  it('avviser alle filer utenfor publiserte, kommende prosjekter', () => {
+    expect(memberCanAccessFile(file('part', 'percussion-1'), outsideProject)).toBe(false)
+    expect(memberCanAccessFile(file('score'), outsideProject)).toBe(false)
+    expect(memberCanAccessFile(file('audio'), outsideProject)).toBe(false)
+  })
   it('medlem uten stemme når ingen part-filer', () => {
-    const none: AccessCtx = { effectivePartIds: [], canViewScore: true, canViewAll: false }
+    const none: AccessCtx = { ...member, effectivePartIds: [] }
     expect(memberCanAccessFile(file('part', 'percussion-1'), none)).toBe(false)
   })
 })
@@ -66,5 +87,10 @@ describe('memberCanSeeFile (metadata i liste)', () => {
   it('uplassert skjules for ikke-arkivinnsyn, vises ellers', () => {
     expect(memberCanSeeFile(file('other'), member)).toBe(false)
     expect(memberCanSeeFile(file('other'), viewAll)).toBe(true)
+  })
+  it('skjuler alle filmetadata utenfor tilgjengelige prosjekter', () => {
+    expect(memberCanSeeFile(file('part', 'percussion-1'), outsideProject)).toBe(false)
+    expect(memberCanSeeFile(file('score'), outsideProject)).toBe(false)
+    expect(memberCanSeeFile(file('audio'), outsideProject)).toBe(false)
   })
 })

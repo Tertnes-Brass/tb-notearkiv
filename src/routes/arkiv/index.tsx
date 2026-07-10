@@ -8,6 +8,11 @@ import { listWorks } from '../../server/works'
 export const Route = createFileRoute('/arkiv/')({
   beforeLoad: ({ context }) => {
     if (!context.me) throw redirect({ to: '/login' })
+    const canBrowseArchive =
+      context.me.permissions.includes('*') ||
+      context.me.permissions.includes('archive.viewAll') ||
+      context.me.permissions.includes('works.manage')
+    if (!canBrowseArchive) throw redirect({ to: '/' })
   },
   validateSearch: (search: Record<string, unknown>): { q?: string } =>
     typeof search.q === 'string' && search.q ? { q: search.q } : {},

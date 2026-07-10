@@ -18,6 +18,11 @@ import {
 export const Route = createFileRoute('/arkiv/$workId')({
   beforeLoad: ({ context }) => {
     if (!context.me) throw redirect({ to: '/login' })
+    const canBrowseArchive =
+      context.me.permissions.includes('*') ||
+      context.me.permissions.includes('archive.viewAll') ||
+      context.me.permissions.includes('works.manage')
+    if (!canBrowseArchive) throw redirect({ to: '/' })
   },
   loader: ({ params }) => getWork({ data: { id: params.workId } }),
   component: WorkPage,

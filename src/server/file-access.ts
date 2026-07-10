@@ -5,9 +5,10 @@
  * enhetstestes i node.
  *
  * Hard tilgangsstyring: en innlogget bruker når en stemmefil kun hvis stemma er
- * i `effectivePartIds` (tildelte stemmer ekspandert nedover treet), eller hen har
- * fullt arkivinnsyn. Partitur styres ortogonalt av `scores.view`. Lyd er åpen for
- * alle innloggede. Uplassert ('other') krever fullt arkivinnsyn.
+ * i `effectivePartIds` (tildelte stemmer ekspandert nedover treet) OG verket er
+ * med i et publisert, kommende prosjekt. Fullt arkivinnsyn omgår prosjektkravet.
+ * Partitur styres ortogonalt av `scores.view`. Uplassert ('other') krever fullt
+ * arkivinnsyn.
  */
 
 export type FileLite = { kind: string; partId: string | null }
@@ -16,10 +17,12 @@ export type AccessCtx = {
   effectivePartIds: string[]
   canViewScore: boolean // scores.view
   canViewAll: boolean // archive.viewAll ELLER works.manage (sistnevnte = fail-safe for arkivforvaltere)
+  inAccessibleProject: boolean // verket finnes i minst ett publisert, kommende prosjekt
 }
 
 /** Kan en innlogget bruker laste ned denne filen? */
 export function memberCanAccessFile(file: FileLite, ctx: AccessCtx): boolean {
+  if (!ctx.canViewAll && !ctx.inAccessibleProject) return false
   switch (file.kind) {
     case 'audio':
       return true
@@ -52,6 +55,7 @@ export function shareAllows(file: FileLite, sharedLeafIds: string[]): boolean {
  */
 export function memberCanSeeFile(file: FileLite, ctx: AccessCtx): boolean {
   if (ctx.canViewAll) return true
+  if (!ctx.inAccessibleProject) return false
   if (file.kind === 'score' || file.kind === 'audio') return true
   if (file.kind === 'part') return !!file.partId && ctx.effectivePartIds.includes(file.partId)
   return false // 'other'/uplassert skjules
