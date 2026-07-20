@@ -211,7 +211,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
 
     // Prøv å sende innloggingslenke (magisk lenke). Feiler stille hvis e-post
     // ikke er aktivert ennå — invitasjonen står uansett, og medlemmet kan logge
-    // inn selv på noter.saynain.com med e-posten sin.
+    // inn selv på noter.tertnesbrass.com med e-posten sin.
     let emailSent = false
     try {
       await getAuth().api.signInMagicLink({

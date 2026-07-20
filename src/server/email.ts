@@ -2,16 +2,17 @@ import { env } from 'cloudflare:workers'
 
 /**
  * E-postsending via Cloudflare Email Sending (binding `EMAIL`) — ingen ekstern
- * leverandør. Avsenderdomenet må være onboardet: `wrangler email sending enable saynain.com`.
+ * leverandør. Avsenderdomenet må være onboardet:
+ * `wrangler email sending enable tertnesbrass.com`.
  *
  * Degraderer pent: hvis bindingen ikke finnes (lokal dev, eller e-post ikke
  * aktivert ennå), logges meldingen til konsollen så magiske lenker kan testes,
  * og passordinnlogging fungerer uansett.
  */
 
-// Avsenderdomenet må være onboardet i Cloudflare Email Sending. Vi bruker
-// subdomenet noter.saynain.com (isolerer appens post fra saynain.com forøvrig).
-const FROM = { email: 'noreply@noter.saynain.com', name: 'Tertnes Brass Notearkiv' }
+// Avsenderdomenet må være onboardet i Cloudflare Email Sending. Dette påvirker
+// ikke innkommende e-post for tertnesbrass.no, som fortsatt håndteres av Uniweb.
+const FROM = { email: 'noreply@tertnesbrass.com', name: 'Tertnes Brass Notearkiv' }
 
 type SendArgs = { to: string; subject: string; html: string; text: string }
 
@@ -88,7 +89,7 @@ export function inviteEmail(url: string, bandName = 'Tertnes Brass'): { subject:
       'Velkommen!',
       `<p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5f5640">Du er lagt til i notearkivet til ${bandName}. Klikk under for å logge inn første gang — så finner du notene dine, kommende konserter og lytteeksempler.</p>
        <p style="margin:0 0 24px">${button(url, 'Logg inn første gang')}</p>
-       <p style="margin:0;font-size:12px;color:#8e8468">Lenken er gyldig i 30 minutter. Du kan også gå til <span style="color:#7a5f1d">noter.saynain.com</span> og logge inn med e-postadressen din når som helst.</p>`,
+       <p style="margin:0;font-size:12px;color:#8e8468">Lenken er gyldig i 30 minutter. Du kan også gå til <span style="color:#7a5f1d">noter.tertnesbrass.com</span> og logge inn med e-postadressen din når som helst.</p>`,
     ),
     text: `Du er invitert til ${bandName} Notearkiv.\n\nLogg inn første gang her (gyldig i 30 minutter):\n${url}\n`,
   }

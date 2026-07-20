@@ -5,6 +5,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "tb-notearkiv",
+	"account_id": "3709ec57046e3f629f737cf5b6b88a82",
 	"compatibility_date": "2025-09-02",
 	"compatibility_flags": ["nodejs_compat"],
 	"main": "@tanstack/react-start/server-entry",
@@ -15,13 +16,13 @@
 	"vars": {
 		// Ikke-hemmelige variabler. Hemmeligheter (BETTER_AUTH_SECRET) settes med
 		// `wrangler secret put` i prod og i .dev.vars lokalt.
-		"BETTER_AUTH_URL": "https://noter.saynain.com",
+		"BETTER_AUTH_URL": "https://noter.tertnesbrass.com",
 		// Første bruker med denne e-posten promoteres automatisk til admin.
 		"ADMIN_EMAIL": "sindre.ryland@gmail.com"
 	},
 	"routes": [
 		{
-			"pattern": "noter.saynain.com",
+			"pattern": "noter.tertnesbrass.com",
 			"custom_domain": true
 		}
 	],
@@ -31,7 +32,7 @@
 		{
 			"binding": "DB",
 			"database_name": "tb-notearkiv",
-			"database_id": "9b8cdf25-4d9d-4593-94b0-3b6317a3a859",
+			"database_id": "e4b81185-85e0-4838-880a-2336293b8838",
 			"migrations_dir": "migrations"
 		}
 	],
@@ -42,6 +43,6 @@
 		}
 	],
 	// Cloudflare Email Sending — magisk lenke + passord-reset. Domenet onboardes
-	// med `wrangler email sending enable saynain.com` (setter opp DKIM/SPF automatisk).
+	// med `wrangler email sending enable tertnesbrass.com` (setter opp DKIM/SPF automatisk).
 	"send_email": [{ "name": "EMAIL" }]
 }
