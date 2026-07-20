@@ -4,7 +4,7 @@ Notearkiv, publisering og deling av noter for brass band — bygget for [Tertnes
 
 **Idéen:** Arkivaren katalogiserer verkene én gang, med PDF per stemme. Deretter er en ny konsert bare å klikke sammen et program — hvert medlem ser *sine* stemmer («Mine noter»), og vikarer får en tidsbegrenset lenke med kun sine stemmer, uten innlogging.
 
-> **Status: fase 1 — i produksjon på [noter.saynain.com](https://noter.saynain.com)** (invitasjonsbasert; tom for innhold, klar til bruk).
+> **Status: fase 1 — i produksjon på [noter.tertnesbrass.com](https://noter.tertnesbrass.com)** (invitasjonsbasert).
 > Kjørbar lokalt uten Cloudflare-konto. All demodata er kunstig (inkl. genererte note-PDF-er) — ingen rettighetsbelagte noter i repoet.
 
 ## Funksjoner
@@ -64,15 +64,15 @@ pnpm exec wrangler d1 create tb-notearkiv           # legg database_id inn i wra
 pnpm exec wrangler r2 bucket create tb-notearkiv-files
 pnpm exec wrangler d1 migrations apply tb-notearkiv --remote
 pnpm exec wrangler secret put BETTER_AUTH_SECRET    # `openssl rand -base64 32`
-pnpm exec wrangler email sending enable saynain.com # magisk lenke + reset (dashboard hvis token mangler scope)
+pnpm exec wrangler email sending enable tertnesbrass.com # magisk lenke + reset (dashboard hvis token mangler scope)
 pnpm run deploy                                      # sett ADMIN_EMAIL + BETTER_AUTH_URL i wrangler.jsonc først
 ```
 
-Logg så inn med `ADMIN_EMAIL`-adressen (blir admin automatisk) og inviter resten. Custom domene (`noter.saynain.com`) som ikke skal være bak Cloudflare Access må ha en egen Access-app med **Bypass / Everyone**, ellers blokkeres besøkende.
+Logg så inn med `ADMIN_EMAIL`-adressen (blir admin automatisk) og inviter resten. Custom domene (`noter.tertnesbrass.com`) som ikke skal være bak Cloudflare Access må ha en egen Access-app med **Bypass / Everyone**, ellers blokkeres besøkende.
 
 ## Veikart (kort)
 
-- **Fase 1 (gjort)** — better-auth (magisk lenke + passord, invitasjonsbasert), e-post via Cloudflare, prod på noter.saynain.com
+- **Fase 1 (gjort)** — better-auth (magisk lenke + passord, invitasjonsbasert), e-post via Cloudflare, prod på noter.tertnesbrass.com
 - **Neste** — Google-innlogging, import fra dagens Google Sheets/Drive, backup-cron (D1-dump + rclone til off-site)
 - **Fase 2** — PDF-splitter i nettleser (samle-PDF → stemmer), ZIP-nedlasting, e-postvarsler, nedlastingslogg-UI
 - **Fase 3** — «deploy your own»-dokumentasjon for andre korps, besetning som konfigurasjon (janitsjar m.m.), lisensvalg

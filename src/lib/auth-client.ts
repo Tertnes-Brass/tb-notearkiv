@@ -1,7 +1,7 @@
 import { magicLinkClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
-// baseURL utelates: klient og API deler origin i prod (noter.saynain.com) og i dev.
+// baseURL utelates: klient og API deler origin i prod (noter.tertnesbrass.com) og i dev.
 export const authClient = createAuthClient({
   plugins: [magicLinkClient()],
 })

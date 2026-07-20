@@ -64,8 +64,9 @@ function buildAuth() {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [
+      'https://noter.tertnesbrass.com',
+      'https://tb-notearkiv.tb-370.workers.dev',
       'https://noter.saynain.com',
-      'https://tb-notearkiv.saynain.workers.dev',
       'http://localhost:3000',
     ],
     database: drizzleAdapter(db(), { provider: 'sqlite', schema }),

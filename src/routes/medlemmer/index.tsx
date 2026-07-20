@@ -353,7 +353,7 @@ function InviteModal({
       toast(
         res.emailSent
           ? `Invitasjon sendt til ${email}`
-          : `${email} er invitert — be dem logge inn på noter.saynain.com`,
+          : `${email} er invitert — be dem logge inn på noter.tertnesbrass.com`,
       )
       setEmail('')
       setName('')
