@@ -13,7 +13,10 @@
 		"test": "vitest run",
 		"deploy": "pnpm run build && wrangler deploy",
 		"auth:generate": "better-auth generate --config src/server/auth.cli.ts --output src/db/auth-schema.ts -y",
-		"cf-typegen": "wrangler types"
+		"cf-typegen": "wrangler types",
+		"backup:export": "wrangler d1 export tb-notearkiv --remote --output backups/manual-$(date -u +%Y-%m-%dT%H%M)Z.sql",
+		"backup:restore-test": "scripts/restore-test.sh",
+		"backup:offsite": "scripts/offsite-sync.sh"
 	},
 	"dependencies": {
 		"@cloudflare/vite-plugin": "^1.26.0",
